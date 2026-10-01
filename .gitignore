@@ -1,0 +1,19 @@
+# Môi trường ảo & Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Dữ liệu & cơ sở dữ liệu vector
+chroma_db/
+data/raw/*
+!data/raw/.gitkeep
+
+# IDE & Editor
+.vscode/
+.idea/
+
+# File tạm & tracking hạn ngạch
+*.log
+quota_tracking.json
