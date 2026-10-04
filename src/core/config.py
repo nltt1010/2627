@@ -1,5 +1,7 @@
+import re
 from functools import lru_cache
 from typing import List
+from dotenv import dotenv_values
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -12,7 +14,6 @@ class Settings(BaseSettings):
     APP_PORT: int = 8000
 
     GEMINI_API_KEYS_RAW: str = Field(default="", alias="GEMINI_API_KEYS")
-
 
     CHROMA_PERSIST_DIR: str = "chroma_db"
     RAW_DATA_DIR: str = "data/raw"
@@ -28,10 +29,26 @@ class Settings(BaseSettings):
 
     @property
     def gemini_api_keys(self) -> List[str]:
-        """Tách chuỗi các API key phân tách bởi dấu phẩy thành danh sách."""
-        if not self.GEMINI_API_KEYS_RAW:
-            return []
-        return [key.strip() for key in self.GEMINI_API_KEYS_RAW.split(",") if key.strip()]
+        keys: List[str] = []
+
+       
+        if self.GEMINI_API_KEYS_RAW:
+            for k in self.GEMINI_API_KEYS_RAW.split(","):
+                k_clean = k.strip()
+                if k_clean and k_clean not in keys:
+                    keys.append(k_clean)
+
+        
+        env_dict = dotenv_values(".env")
+        pattern = re.compile(r"^GEMINI_API_KEYS?_?\d+$", re.IGNORECASE)
+
+        for env_name, env_val in env_dict.items():
+            if env_val and pattern.match(env_name):
+                val_clean = env_val.strip()
+                if val_clean and val_clean not in keys:
+                    keys.append(val_clean)
+
+        return keys
 
 
 @lru_cache()
