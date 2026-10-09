@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     RAW_DATA_DIR: str = "data/raw"
 
     DEFAULT_LLM_MODEL: str = "gemini-2.5-flash"
-    DEFAULT_EMBEDDING_MODEL: str = "models/text-embedding-004"
+    DEFAULT_EMBEDDING_MODEL: str = "models/gemini-embedding-001"
 
     model_config = SettingsConfigDict(
         env_file=".env",
