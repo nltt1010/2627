@@ -49,6 +49,28 @@ def initialize_rag_system():
 with st.spinner("Đang khởi tạo chỉ mục tri thức và kết nối mô hình..."):
     rag_engine = initialize_rag_system()
 
+with st.sidebar:
+    st.header("📂 Quản lý kho tri thức")
+    uploaded_files = st.file_uploader(
+        "Tải lên tài liệu thảo dược (.txt)",
+        type=["txt"],
+        accept_multiple_files=True,
+    )
+
+    if uploaded_files and st.button("Lưu & Cập nhật tri thức", use_container_width=True):
+        raw_dir = Path("data/raw")
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        count = 0
+        for uploaded_file in uploaded_files:
+            file_path = raw_dir / uploaded_file.name
+            with open(file_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            count += 1
+
+        st.success(f"Đã lưu {count} tài liệu vào data/raw!")
+        st.cache_resource.clear()
+        st.info("Đã làm mới bộ nhớ cache, vui lòng nhấn Rerun hoặc F5 để áp dụng.")
+
 # Quản lý lịch sử tin nhắn qua Session State
 if "messages" not in st.session_state:
     st.session_state.messages = [
