@@ -195,6 +195,121 @@ def query_vision_rag():
     res = visual_rag.process_image_query(image_input=pil_img, user_question=custom_question)
     return jsonify(res)
 
+@app.route("/api/rag/text/upload", methods=["POST"])
+def upload_text_document():
+    """Tải lên file tài liệu văn bản (.txt) mới và re-index lại kho tri thức RAG."""
+    uploaded_files = request.files.getlist("files") or request.files.getlist("file")
+    if not uploaded_files or (len(uploaded_files) == 1 and uploaded_files[0].filename == ""):
+        return jsonify({"error": "Vui lòng chọn ít nhất 1 file .txt"}), 400
+
+    raw_dir = Path("data/raw")
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    saved_count = 0
+    for f in uploaded_files:
+        if f and f.filename.endswith(".txt"):
+            save_path = raw_dir / secure_filename(f.filename)
+            f.save(save_path)
+            saved_count += 1
+
+    if saved_count == 0:
+        return jsonify({"error": "Chỉ chấp nhận các file định dạng .txt!"}), 400
+
+    # Tự động Re-index kho tài liệu vào VectorStore và HybridRetriever
+    global chunks, vs_manager, hybrid_retriever, text_generator, visual_rag
+    try:
+        raw_docs = ingestion.load_text_files()
+        chunks = ingestion.split_documents(raw_docs)
+        vs_manager.add_documents(chunks)
+        hybrid_retriever = HybridRetrieverManager(
+            vectorstore_manager=vs_manager,
+            documents=chunks,
+        )
+        text_generator = RAGGenerator(hybrid_retriever=hybrid_retriever)
+        visual_rag.text_retriever = hybrid_retriever
+    except Exception as e:
+        return jsonify({"error": f"Lỗi re-index tài liệu: {str(e)}"}), 500
+
+    return jsonify({
+        "success": True,
+        "message": f"Đã lưu thành công {saved_count} file tài liệu và đồng bộ hóa lại tri thức RAG!",
+        "saved_count": saved_count,
+    })
+
+import re
+
+def slugify_vietnamese(text: str) -> str:
+    """Chuyển đổi chuỗi tiếng Việt thành tên file an toàn (vd: 'Đinh Lăng' -> 'dinh_lang')."""
+    text = text.lower().strip()
+    # Chuyển các ký tự có dấu phổ biến
+    patterns = {
+        '[àáạảãâầấậẩẫăằắặẳẵ]': 'a',
+        '[èéẹẻẽêềếệểễ]': 'e',
+        '[ìíịỉĩ]': 'i',
+        '[òóọỏõôồốộổỗơờớợởỡ]': 'o',
+        '[ùúụủũưừứựửữ]': 'u',
+        '[ỳýỵỷỹ]': 'y',
+        '[đ]': 'd',
+    }
+    for regex, replace in patterns.items():
+        text = re.sub(regex, replace, text)
+    # Loại bỏ ký tự đặc biệt, chỉ giữ lại chữ, số và khoảng trắng
+    text = re.sub(r'[^a-z0-9\s_]', '', text)
+    text = re.sub(r'\s+', '_', text)
+    return text or "thao_duoc"
+
+@app.route("/api/rag/text/create", methods=["POST"])
+def create_text_document():
+    """Tạo trực tiếp file .txt từ văn bản nhập trên giao diện và re-index lại kho tri thức."""
+    data = request.get_json() or {}
+    herb_name = data.get("herb_name", "").strip()
+    scientific_name = data.get("scientific_name", "").strip()
+    content = data.get("content", "").strip()
+
+    if not herb_name or not content:
+        return jsonify({"error": "Vui lòng nhập tên thảo dược và nội dung mô tả!"}), 400
+
+    raw_dir = Path("data/raw")
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    # Đặt tên file tự động dựa theo tên cây (vd: dinh_lang.txt)
+    base_slug = slugify_vietnamese(herb_name)
+    file_name = f"{base_slug}.txt"
+    file_path = raw_dir / file_name
+
+    # Chuẩn hóa định dạng chuẩn để hàm quét dữ liệu tự bóc tách được danh pháp
+    # Dòng 1: Tên (danh pháp khoa học: ...)
+    full_text = f"{herb_name}"
+    if scientific_name:
+        full_text += f" (danh pháp khoa học: {scientific_name})"
+    full_text += f"\n\n{content}\n"
+
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(full_text)
+    except Exception as e:
+        return jsonify({"error": f"Lỗi ghi file: {str(e)}"}), 500
+
+    # Tự động Re-index kho tài liệu vào VectorStore và HybridRetriever
+    global chunks, vs_manager, hybrid_retriever, text_generator, visual_rag
+    try:
+        raw_docs = ingestion.load_text_files()
+        chunks = ingestion.split_documents(raw_docs)
+        vs_manager.add_documents(chunks)
+        hybrid_retriever = HybridRetrieverManager(
+            vectorstore_manager=vs_manager,
+            documents=chunks,
+        )
+        text_generator = RAGGenerator(hybrid_retriever=hybrid_retriever)
+        visual_rag.text_retriever = hybrid_retriever
+    except Exception as e:
+        return jsonify({"error": f"Lỗi re-index tài liệu: {str(e)}"}), 500
+
+    return jsonify({
+        "success": True,
+        "message": f"Đã tạo file {file_name} và cập nhật tri thức RAG thành công!",
+        "file_name": file_name,
+    })
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000, debug=True)
