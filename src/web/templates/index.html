@@ -143,16 +143,38 @@
         </div>
 
         <!-- ============================================================== -->
-        <!-- TAB 3: TEXT RAG -->
+        <!-- TAB 3: MULTIMODAL CHATBOT -->
         <!-- ============================================================== -->
         <div class="tab-pane fade" id="tab-text">
             <div class="card shadow-sm p-3">
                 <div id="chat-box" class="chat-box mb-3">
-                    <div class="chat-msg chat-bot markdown-body">Xin chào! Tôi là VietHerb-AI. Bạn cần tra cứu điều gì về dược tính, thành phần hóa học hay liều dùng thảo dược?</div>
+                    <div class="chat-msg chat-bot markdown-body">
+                        Xin chào! Tôi là <strong>VietHerb-AI</strong>. Bạn có thể hỏi về dược tính, liều dùng hoặc bấm biểu tượng 📎 để gửi kèm ảnh cây cần nhận diện/tra cứu trực tiếp tại đây!
+                    </div>
                 </div>
+
+                <!-- KHU VỰC XEM TRƯỚC ẢNH CHUẨN BỊ GỬI -->
+                <div id="chat-attachment-preview" class="mb-2 p-2 border rounded bg-light d-none align-items-center justify-content-between" style="max-width: 320px;">
+                    <div class="d-flex align-items-center">
+                        <img id="chat-img-thumb" src="" class="rounded me-2 border" style="width: 46px; height: 46px; object-fit: cover;">
+                        <span class="small text-truncate" id="chat-img-name" style="max-width: 200px; font-weight: 500;">image.jpg</span>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-close" onclick="clearChatAttachment()"></button>
+                </div>
+
+                <!-- THANH NHẬP LIỆU CHAT KÈM NÚT 📎 -->
                 <div class="input-group">
-                    <input type="text" id="chat-input" class="form-control" placeholder="Nhập câu hỏi (ví dụ: Cà Gai Leo hỗ trợ viêm gan B ra sao?)" onkeypress="handleChatKey(event)">
-                    <button class="btn btn-success fw-bold" onclick="sendChatMessage()">Gửi câu hỏi</button>
+                    <input type="file" id="chat-file-input" accept="image/*" class="d-none" onchange="handleChatImageSelected(event)">
+                    
+                    <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('chat-file-input').click()" title="Đính kèm ảnh thảo dược">
+                        📎
+                    </button>
+                    
+                    <input type="text" id="chat-input" class="form-control" placeholder="Nhập câu hỏi hoặc gửi kèm ảnh thảo dược..." onkeypress="handleChatKey(event)">
+                    
+                    <button class="btn btn-success fw-bold" id="chat-send-btn" onclick="sendChatMessage()">
+                        Gửi câu hỏi
+                    </button>
                 </div>
             </div>
         </div>
@@ -753,35 +775,134 @@
     }
 
     // --- TEXT RAG ---
-    function handleChatKey(e) { if (e.key === 'Enter') sendChatMessage(); }
+    // Biến lưu file ảnh đính kèm trong chat
+    let selectedChatImageFile = null;
+
+    // Bắt sự kiện khi người dùng chọn ảnh qua nút 📎
+    function handleChatImageSelected(event) {
+        const file = event.target.files[0];
+        if (file) {
+            selectedChatImageFile = file;
+            document.getElementById("chat-img-thumb").src = URL.createObjectURL(file);
+            document.getElementById("chat-img-name").innerText = file.name;
+            
+            const previewBox = document.getElementById("chat-attachment-preview");
+            previewBox.classList.remove("d-none");
+            previewBox.classList.add("d-flex");
+        }
+    }
+
+    // Xóa ảnh đã chọn nếu không muốn gửi nữa
+    function clearChatAttachment() {
+        selectedChatImageFile = null;
+        document.getElementById("chat-file-input").value = "";
+        const previewBox = document.getElementById("chat-attachment-preview");
+        previewBox.classList.add("d-none");
+        previewBox.classList.remove("d-flex");
+    }
+
+    function handleChatKey(e) { 
+        if (e.key === 'Enter') sendChatMessage(); 
+    }
+
+    // Gửi tin nhắn và render phản hồi (kèm ảnh)
     function sendChatMessage() {
         const input = document.getElementById("chat-input");
         const text = input.value.trim();
-        if (!text) return;
+        const file = selectedChatImageFile;
+
+        if (!text && !file) return;
 
         const box = document.getElementById("chat-box");
-        box.innerHTML += `<div class="chat-msg chat-user">${text}</div>`;
+        const sendBtn = document.getElementById("chat-send-btn");
+
+        // 1. RENDER TIN NHẮN CỦA USER: Nếu có đính kèm ảnh thì vẽ ảnh ra bong bóng chat
+        let userMsgHtml = `<div class="chat-msg chat-user shadow-sm">`;
+        if (file) {
+            const tempImgUrl = URL.createObjectURL(file);
+            userMsgHtml += `
+                <div class="mb-2">
+                    <img src="${tempImgUrl}" class="rounded border shadow-sm" style="max-height: 160px; max-width: 100%; object-fit: cover;">
+                </div>`;
+        }
+        if (text) {
+            userMsgHtml += `<div>${text}</div>`;
+        }
+        userMsgHtml += `</div>`;
+
+        box.innerHTML += userMsgHtml;
         input.value = "";
+        clearChatAttachment(); // Reset ô preview
         box.scrollTop = box.scrollHeight;
+
+        // 2. Hiển thị thông báo bot đang tra cứu
+        const loadingId = "bot-loading-" + Date.now();
+        box.innerHTML += `
+            <div id="${loadingId}" class="chat-msg chat-bot text-muted shadow-sm">
+                <span class="spinner-border spinner-border-sm me-2"></span> Đang tra cứu tri thức và hình thái học...
+            </div>`;
+        box.scrollTop = box.scrollHeight;
+        sendBtn.disabled = true;
+
+        // 3. Đóng gói dữ liệu multipart gửi qua API
+        const formData = new FormData();
+        formData.append("question", text);
+        if (file) {
+            formData.append("image", file);
+        }
 
         fetch("/api/rag/text", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ question: text })
-        }).then(res => res.json())
-          .then(data => {
-              const parsedHtml = parseMarkdown(data.answer);
-              box.innerHTML += `
-                <div class="chat-msg chat-bot markdown-body">
-                    ${parsedHtml}
-                    <div class="mt-2 text-muted small border-top pt-1">📚 Nguồn: ${data.sources.join(', ')}</div>
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById(loadingId)?.remove();
+            sendBtn.disabled = false;
+
+            if (data.error) {
+                box.innerHTML += `<div class="chat-msg chat-bot text-danger shadow-sm">⚠️ ${data.error}</div>`;
+                return;
+            }
+
+            // Render Markdown an toàn
+            const parsedContent = parseMarkdown(data.answer);
+
+            // 4. RENDER ẢNH CỦA BOT: Nếu backend có trả về "attached_image" thì render khung ảnh này
+            let attachedImgHtml = "";
+            if (data.attached_image && data.attached_image.url) {
+                attachedImgHtml = `
+                    <div class="card my-2 border-success shadow-sm" style="max-width: 260px; overflow: hidden;">
+                        <img src="${data.attached_image.url}" class="card-img-top" style="height: 140px; object-fit: cover; cursor: pointer;" 
+                             onclick="openLightbox('${data.attached_image.url}', '${data.attached_image.herb_name}', 'Ảnh mẫu đối chiếu', 'bot_ref')" 
+                             title="Nhấp để phóng to">
+                        <div class="card-body p-2 bg-light">
+                            <div class="fw-bold text-success small">🌿 Mẫu đối chứng: ${data.attached_image.herb_name}</div>
+                            <div class="fst-italic text-muted" style="font-size: 0.75rem;">${data.attached_image.scientific_name || ''}</div>
+                        </div>
+                    </div>`;
+            }
+
+            // Nguồn tài liệu tham khảo
+            const sourcesHtml = data.sources && data.sources.length > 0 
+                ? `<div class="mt-2 text-muted small border-top pt-1">📚 Nguồn: ${data.sources.join(', ')}</div>` 
+                : '';
+
+            // Ghép toàn bộ vào bong bóng chat của Bot
+            box.innerHTML += `
+                <div class="chat-msg chat-bot markdown-body shadow-sm">
+                    ${attachedImgHtml}
+                    ${parsedContent}
+                    ${sourcesHtml}
                 </div>`;
-              box.scrollTop = box.scrollHeight;
-          })
-          .catch(err => {
-              box.innerHTML += `<div class="chat-msg chat-bot text-danger">Lỗi phản hồi: ${err}</div>`;
-              box.scrollTop = box.scrollHeight;
-          });
+            box.scrollTop = box.scrollHeight;
+        })
+        .catch(err => {
+            document.getElementById(loadingId)?.remove();
+            sendBtn.disabled = false;
+            box.innerHTML += `<div class="chat-msg chat-bot text-danger shadow-sm">Lỗi kết nối máy chủ: ${err}</div>`;
+            box.scrollTop = box.scrollHeight;
+        });
     }
 </script>
 </body>

@@ -152,6 +152,7 @@ class VisualRAGPipeline:
             "herb_name": herb_name,
             "scientific_name": scientific_name,
             "similarity_score": sim_score,
+            "matched_image_path": match_result.get("file_path", ""),
             "answer": response.content,
             "sources": list(sources),
         }

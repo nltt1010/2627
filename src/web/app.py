@@ -32,7 +32,7 @@ hybrid_retriever = HybridRetrieverManager(
     vectorstore_manager=vs_manager,
     documents=chunks,
 )
-
+image_store = ImageVectorStore(collection_name="herb_images_collection")
 text_generator = RAGGenerator(hybrid_retriever=hybrid_retriever)
 image_store = ImageVectorStore(collection_name="herb_images_collection")
 visual_rag = VisualRAGPipeline(
@@ -171,16 +171,89 @@ def view_image():
 
 # --- API TRA CỨU RAG ---
 @app.route("/api/rag/text", methods=["POST"])
+@app.route("/api/rag/text", methods=["POST"])
 def query_text_rag():
-    """Tra cứu văn bản chuyên sâu."""
-    data = request.get_json() or {}
-    question = data.get("question", "").strip()
-    if not question:
-        return jsonify({"error": "Thiếu câu hỏi"}), 400
+    """Endpoint trò chuyện: Chỉ gửi kèm ảnh khi xác định rõ ràng loài cây có trong image_store."""
+    question = request.form.get("question", "").strip()
+    image_file = request.files.get("image")
 
+    if not question and not image_file:
+        return jsonify({"error": "Vui lòng nhập câu hỏi hoặc gửi kèm ảnh!"}), 400
+
+    attached_herb_image = None
+    available_herbs = image_store.get_available_herbs()  # Danh sách tên chuẩn: ['Cà Gai Leo', 'Sâm Ngọc Linh', ...]
+
+    # =========================================================================
+    # TRƯỜNG HỢP 1: NGƯỜI DÙNG GỬI ẢNH ĐỂ NHẬN DIỆN
+    # =========================================================================
+    if image_file and image_file.filename != "":
+        try:
+            pil_img = Image.open(image_file.stream)
+            v_res = visual_rag.process_image_query(
+                image_input=pil_img, 
+                user_question=question or "Nhận diện loài thảo dược này và nêu công dụng y học chính."
+            )
+            answer_text = v_res.get("answer", "")
+            sources = v_res.get("sources", [])
+            matched_herb = v_res.get("herb_name", "")
+            sim_score = v_res.get("similarity_score", 0)
+
+            # CHỈ ĐÍNH KÈM ẢNH KHI:
+            # - Có loài cây khớp trong kho (matched_herb thuộc available_herbs)
+            # - Độ tương đồng vector đạt ngưỡng (>= 70%)
+            # - Gemini KHÔNG nói "không khớp" hoặc "không phải" loài cây này trong câu trả lời
+            negative_keywords = ["không khớp", "không phải", "khác với", "nhầm lẫn", "không phù hợp"]
+            is_rejected_by_gemini = any(kw in answer_text.lower() for kw in negative_keywords)
+
+            if matched_herb in available_herbs and sim_score >= 70.0 and not is_rejected_by_gemini:
+                gallery = image_store.get_herb_gallery(matched_herb)
+                if gallery:
+                    attached_herb_image = {
+                        "herb_name": matched_herb,
+                        "url": f"/api/image/view?path={gallery[0]['file_path']}",
+                        "scientific_name": gallery[0].get("scientific_name", "")
+                    }
+
+            return jsonify({
+                "answer": answer_text,
+                "sources": sources,
+                "attached_image": attached_herb_image  # Sẽ là None nếu không khớp chuẩn
+            })
+        except Exception as e:
+            return jsonify({"error": f"Lỗi xử lý ảnh: {str(e)}"}), 500
+
+    # =========================================================================
+    # TRƯỜNG HỢP 2: NGƯỜI DÙNG HỎI DẠNG VĂN BẢN (TEXT)
+    # =========================================================================
     res = text_generator.answer_question(question)
-    return jsonify(res)
+    answer_text = res.get("answer", "")
+    sources = res.get("sources", [])
 
+    # CHỈ ĐÍNH KÈM ẢNH KHI:
+    # Người dùng hỏi đích danh loài cây có trong image_store (kiểm tra regex ranh giới từ để tránh khớp nhầm)
+    matched_herb_in_question = None
+    for herb in available_herbs:
+        # Kiểm tra xem tên cây có xuất hiện trọn vẹn trong câu hỏi của người dùng không
+        pattern = r'\b' + re.escape(herb.lower()) + r'\b'
+        if re.search(pattern, question.lower()):
+            matched_herb_in_question = herb
+            break
+
+    # Nếu người dùng hỏi đúng tên cây có trong kho ảnh -> lấy ảnh minh họa
+    if matched_herb_in_question:
+        gallery = image_store.get_herb_gallery(matched_herb_in_question)
+        if gallery:
+            attached_herb_image = {
+                "herb_name": matched_herb_in_question,
+                "url": f"/api/image/view?path={gallery[0]['file_path']}",
+                "scientific_name": gallery[0].get("scientific_name", "")
+            }
+
+    return jsonify({
+        "answer": answer_text,
+        "sources": sources,
+        "attached_image": attached_herb_image  # Chỉ có ảnh nếu hỏi đích danh cây trong kho
+    })
 
 @app.route("/api/rag/vision", methods=["POST"])
 def query_vision_rag():
@@ -225,7 +298,10 @@ def upload_text_document():
             vectorstore_manager=vs_manager,
             documents=chunks,
         )
-        text_generator = RAGGenerator(hybrid_retriever=hybrid_retriever)
+        text_generator = RAGGenerator(
+            hybrid_retriever=hybrid_retriever,
+            image_store=image_store
+        )
         visual_rag.text_retriever = hybrid_retriever
     except Exception as e:
         return jsonify({"error": f"Lỗi re-index tài liệu: {str(e)}"}), 500
@@ -300,7 +376,10 @@ def create_text_document():
             vectorstore_manager=vs_manager,
             documents=chunks,
         )
-        text_generator = RAGGenerator(hybrid_retriever=hybrid_retriever)
+        text_generator = RAGGenerator(
+            hybrid_retriever=hybrid_retriever,
+            image_store=image_store
+        )
         visual_rag.text_retriever = hybrid_retriever
     except Exception as e:
         return jsonify({"error": f"Lỗi re-index tài liệu: {str(e)}"}), 500
