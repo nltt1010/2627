@@ -132,7 +132,7 @@ def upload_herb_image():
 
     return jsonify({
         "success": True,
-        "message": f"Đã lưu và vector hóa thành công {saved_count} ảnh cho {herb_name}!",
+        "message": f"Đã lưu và cập nhật thành công {saved_count} ảnh mẫu cho {herb_name}!",
         "saved_count": saved_count,
         "errors": errors,
     })
@@ -308,7 +308,7 @@ def upload_text_document():
 
     return jsonify({
         "success": True,
-        "message": f"Đã lưu thành công {saved_count} file tài liệu và đồng bộ hóa lại tri thức RAG!",
+        "message": f"Đã lưu thành công {saved_count} tệp tài liệu và cập nhật cẩm nang tra cứu!",
         "saved_count": saved_count,
     })
 
@@ -386,7 +386,7 @@ def create_text_document():
 
     return jsonify({
         "success": True,
-        "message": f"Đã tạo file {file_name} và cập nhật tri thức RAG thành công!",
+        "message": f"Đã lưu thông tin cây và cập nhật cẩm nang tra cứu thành công!",
         "file_name": file_name,
     })
 

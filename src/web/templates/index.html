@@ -3,907 +3,1260 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VietHerb-AI | Trợ Lý Dược Liệu Đa Phương Thức</title>
+    <title>VietHerb — Cẩm Nang & Nhận Diện Thảo Dược Việt</title>
+    
+    <!-- GOOGLE FONTS: PLUS JAKARTA SANS -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- BOOTSTRAP 5 & ICONS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- MARKED & DOMPURIFY ĐỂ RENDER MARKDOWN AN TOÀN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <!-- CUSTOM SOOTHING DARK THEME STYLESHEET -->
+    <link rel="stylesheet" href="/static/css/style.css">
+    
+    <!-- MARKED & DOMPURIFY FOR SAFE MARKDOWN RENDERING -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
-    <style>
-        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .hero { background: linear-gradient(135deg, #1b5e20, #4caf50); color: white; padding: 25px 0; margin-bottom: 25px; }
-        .card-herb { cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; border-radius: 10px; overflow: hidden; min-width: 220px; }
-        .card-herb:hover { transform: translateY(-4px); box-shadow: 0 6px 15px rgba(0,0,0,0.15); }
-        .card-herb img { height: 140px; object-fit: cover; width: 100%; background: #e0e0e0; }
-        .horizontal-scroll { display: flex; overflow-x: auto; gap: 15px; padding-bottom: 12px; }
-        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
-        .gallery-item img { height: 150px; width: 100%; object-fit: cover; border-radius: 8px; cursor: pointer; transition: opacity 0.2s; }
-        .gallery-item img:hover { opacity: 0.85; }
-        .chat-box { height: 440px; overflow-y: auto; background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; }
-        .chat-msg { margin-bottom: 15px; padding: 12px 16px; border-radius: 8px; max-width: 85%; }
-        .chat-user { background: #e3f2fd; margin-left: auto; }
-        .chat-bot { background: #f1f8e9; margin-right: auto; line-height: 1.6; }
-        .compare-img { height: 180px; object-fit: cover; width: 100%; border-radius: 8px; border: 1px solid #ddd; }
-        .markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 { font-size: 1.15rem; font-weight: bold; margin-top: 10px; color: #1b5e20; }
-        .markdown-body ul, .markdown-body ol { padding-left: 20px; margin-bottom: 8px; }
-        .markdown-body p { margin-bottom: 8px; }
-    </style>
 </head>
 <body>
 
-<div class="hero shadow-sm">
-    <div class="container d-flex justify-content-between align-items-center">
-        <div>
-            <h2 class="mb-1">🌿 VietHerb-AI</h2>
-            <p class="mb-0">Hệ thống RAG Multimodal Dược liệu Việt Nam (Local CLIP + Gemini 2.5 Flash)</p>
-        </div>
-        <button class="btn btn-outline-light btn-sm fw-bold" onclick="openTextDocModal()">
-            📄 Nạp Tài Liệu Văn Bản (.txt)
-        </button>
-    </div>
-</div>
-
-<div class="container mb-5">
-    <!-- NAVIGATION TABS -->
-    <ul class="nav nav-pills mb-4 justify-content-center" id="pills-tab" role="tablist">
-        <li class="nav-item">
-            <button class="nav-link active" id="tab-gallery-btn" data-bs-toggle="pill" data-bs-target="#tab-gallery">🖼️ Quản Lý Thư Viện Ảnh</button>
-        </li>
-        <li class="nav-item">
-            <button class="nav-link" id="tab-vision-btn" data-bs-toggle="pill" data-bs-target="#tab-vision">📷 Nhận Diện Qua Ảnh</button>
-        </li>
-        <li class="nav-item">
-            <button class="nav-link" id="tab-text-btn" data-bs-toggle="pill" data-bs-target="#tab-text">💬 Tra Cứu Văn Bản</button>
-        </li>
-    </ul>
-
-    <div class="tab-content" id="pills-tabContent">
-        <!-- ============================================================== -->
-        <!-- TAB 1: ADMIN IMAGE GALLERY -->
-        <!-- ============================================================== -->
-        <div class="tab-pane fade show active" id="tab-gallery">
-            
-            <!-- CẢNH BÁO THẢO DƯỢC CÓ TEXT NHƯNG THIẾU ẢNH -->
-            <div id="missing-herbs-section" class="card border-warning mb-4 d-none">
-                <div class="card-header bg-warning text-dark fw-bold">
-                    ⚠️ Thảo dược có tài liệu nhưng CHƯA CÓ ảnh mẫu (Cần bổ sung)
-                </div>
-                <div class="card-body">
-                    <p class="text-muted small">Các loài cây này đã có trong kho text RAG nhưng tính năng nhận diện ảnh chưa hỗ trợ vì thiếu vector đối chiếu.</p>
-                    <div id="missing-herbs-list" class="d-flex flex-wrap gap-2"></div>
-                </div>
-            </div>
-
-            <!-- THẢO DƯỢC ĐÃ CÓ ẢNH (KÈM THANH TÌM KIẾM NHANH) -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-white py-3">
-                    <div class="row align-items-center g-2">
-                        <div class="col-md-4">
-                            <span class="fw-bold text-success fs-6">🌿 Danh mục thảo dược đã có ảnh</span>
-                        </div>
-                        <div class="col-md-5">
-                            <!-- THANH TÌM KIẾM THỜI GIAN THỰC -->
-                            <input type="text" id="herb-search-input" class="form-control form-control-sm" 
-                                   placeholder="🔍 Tìm kiếm theo tên thảo dược hoặc tên khoa học..." oninput="handleSearchHerb(event)">
-                        </div>
-                        <div class="col-md-3 text-md-end">
-                            <button class="btn btn-sm btn-outline-success w-100 w-md-auto" onclick="openUploadModal('', '')">✨ Thêm loài cây mới</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div id="available-herbs-scroll" class="horizontal-scroll">
-                        <div class="text-muted small">Đang tải danh sách...</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- KHU VỰC CHI TIẾT ALBUM ẢNH CỦA CÂY ĐƯỢC CHỌN -->
-            <div id="herb-detail-section" class="card shadow-sm d-none">
-                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                    <span id="detail-title" class="fw-bold">Album ảnh</span>
-                    <div>
-                        <button class="btn btn-sm btn-light" id="btn-add-more-img">➕ Bổ sung ảnh cho cây này</button>
-                        <button class="btn btn-sm btn-outline-light ms-2" onclick="closeDetail()">✕ Đóng</button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted small mb-3">💡 <em>Mẹo: Nhấp vào từng ảnh để phóng to kiểm tra chi tiết. Dùng phím ← / → để chuyển ảnh.</em></p>
-                    <div id="gallery-grid" class="gallery-grid"></div>
+    <!-- ============================================================== -->
+    <!-- TOP NAVIGATION (NAV NGANG)                                     -->
+    <!-- ============================================================== -->
+    <header class="top-navbar">
+        <div class="top-navbar-left">
+            <button class="btn-sidebar-toggle d-lg-none" type="button" onclick="toggleSidebar()" title="Mở danh mục menu">
+                <i class="bi bi-list fs-5"></i>
+            </button>
+            <div class="brand-wrapper" onclick="switchNavTab('gallery')">
+                <div class="brand-logo-icon">🌿</div>
+                <div class="brand-title-group">
+                    <span class="brand-title">VietHerb</span>
+                    <span class="brand-subtitle">Cẩm Nang Thảo Dược Việt</span>
                 </div>
             </div>
         </div>
 
-        <!-- ============================================================== -->
-        <!-- TAB 2: VISUAL RAG -->
-        <!-- ============================================================== -->
-        <div class="tab-pane fade" id="tab-vision">
-            <div class="row">
-                <div class="col-md-5">
-                    <div class="card shadow-sm p-3 mb-3">
-                        <h5 class="fw-bold text-success">1. Tải ảnh thảo dược</h5>
-                        <input type="file" id="vision-input-file" class="form-control mb-3" accept="image/*" onchange="previewVisionImage(event)">
-                        <input type="text" id="vision-input-question" class="form-control mb-3" placeholder="Câu hỏi bổ sung (ví dụ: công dụng, liều dùng...)">
-                        <button class="btn btn-success w-100 fw-bold" onclick="submitVisionQuery()">🔍 Phân Tích Ảnh & Tra Cứu (1 Call)</button>
-                        <div class="mt-3 text-center">
-                            <img id="vision-preview" class="img-fluid rounded d-none border shadow-sm" style="max-height: 250px;">
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-7">
-                    <div class="card shadow-sm p-3">
-                        <h5 class="fw-bold text-success">2. Kết quả nhận diện & Đối chiếu</h5>
-                        <div id="vision-result-spinner" class="text-center py-4 d-none">
-                            <div class="spinner-border text-success" role="status"></div>
-                            <div class="small text-muted mt-2">Đang trích xuất vector ảnh bằng CLIP (0 API call) và đối chiếu tri thức...</div>
-                        </div>
-                        <div id="vision-result-content" class="text-muted">Chưa có kết quả phân tích. Hãy tải ảnh thảo dược để bắt đầu.</div>
-                    </div>
-                </div>
+        <div class="top-navbar-center">
+            <div class="status-badge">
+                <span class="status-dot"></span>
+                <span>Cẩm nang trực tuyến</span>
+            </div>
+            <div class="stat-pill" title="Tổng số loài thảo dược đã có trong cẩm nang">
+                <i class="bi bi-flower1 text-herb"></i>
+                <span><strong id="top-herb-count">--</strong> loài cây</span>
+            </div>
+            <div class="stat-pill" title="Tổng số hình ảnh mẫu đối chiếu">
+                <i class="bi bi-images text-herb"></i>
+                <span><strong id="top-img-count">--</strong> ảnh mẫu</span>
             </div>
         </div>
 
-        <!-- ============================================================== -->
-        <!-- TAB 3: MULTIMODAL CHATBOT -->
-        <!-- ============================================================== -->
-        <div class="tab-pane fade" id="tab-text">
-            <div class="card shadow-sm p-3">
-                <div id="chat-box" class="chat-box mb-3">
-                    <div class="chat-msg chat-bot markdown-body">
-                        Xin chào! Tôi là <strong>VietHerb-AI</strong>. Bạn có thể hỏi về dược tính, liều dùng hoặc bấm biểu tượng 📎 để gửi kèm ảnh cây cần nhận diện/tra cứu trực tiếp tại đây!
-                    </div>
-                </div>
-
-                <!-- KHU VỰC XEM TRƯỚC ẢNH CHUẨN BỊ GỬI -->
-                <div id="chat-attachment-preview" class="mb-2 p-2 border rounded bg-light d-none align-items-center justify-content-between" style="max-width: 320px;">
-                    <div class="d-flex align-items-center">
-                        <img id="chat-img-thumb" src="" class="rounded me-2 border" style="width: 46px; height: 46px; object-fit: cover;">
-                        <span class="small text-truncate" id="chat-img-name" style="max-width: 200px; font-weight: 500;">image.jpg</span>
-                    </div>
-                    <button type="button" class="btn btn-sm btn-close" onclick="clearChatAttachment()"></button>
-                </div>
-
-                <!-- THANH NHẬP LIỆU CHAT KÈM NÚT 📎 -->
-                <div class="input-group">
-                    <input type="file" id="chat-file-input" accept="image/*" class="d-none" onchange="handleChatImageSelected(event)">
-                    
-                    <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('chat-file-input').click()" title="Đính kèm ảnh thảo dược">
-                        📎
-                    </button>
-                    
-                    <input type="text" id="chat-input" class="form-control" placeholder="Nhập câu hỏi hoặc gửi kèm ảnh thảo dược..." onkeypress="handleChatKey(event)">
-                    
-                    <button class="btn btn-success fw-bold" id="chat-send-btn" onclick="sendChatMessage()">
-                        Gửi câu hỏi
-                    </button>
-                </div>
-            </div>
+        <div class="top-navbar-right">
+            <button class="btn-dark-subtle" onclick="openTextDocModal()" title="Thêm tài liệu hoặc bài viết giới thiệu loài cây mới">
+                <i class="bi bi-file-earmark-plus text-herb"></i>
+                <span class="d-none d-sm-inline">Bổ sung tư liệu</span>
+            </button>
+            <button class="btn-herb" onclick="openUploadModal('', '')" title="Đóng góp ảnh mẫu cho các loài cây">
+                <i class="bi bi-camera-fill"></i>
+                <span class="d-none d-sm-inline">Thêm ảnh mẫu</span>
+            </button>
         </div>
-    </div>
-</div>
+    </header>
 
-<<!-- MODAL NẠP TÀI LIỆU VĂN BẢN (.TXT) -->
-<div class="modal fade" id="textDocModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title">Quản Lý Nạp Tri Thức Văn Bản (.txt)</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <!-- Tabs lựa chọn cách nạp -->
-                <ul class="nav nav-tabs mb-3" id="docUploadTabs" role="tablist">
-                    <li class="nav-item">
-                        <button class="nav-link active fw-bold" id="tab-upload-file-btn" data-bs-toggle="tab" data-bs-target="#tab-upload-file" type="button">📂 Tải File .txt Có Sẵn</button>
+    <!-- ============================================================== -->
+    <!-- MAIN APPLICATION CONTAINER (SIDEBAR + MAIN CONTENT)            -->
+    <!-- ============================================================== -->
+    <div class="app-container">
+        
+        <!-- ========================================================== -->
+        <!-- SIDEBAR NAVIGATION (NAV DỌC)                               -->
+        <!-- ========================================================== -->
+        <aside class="app-sidebar" id="app-sidebar">
+            <div>
+                <div class="sidebar-section-title">Danh mục tra cứu</div>
+                <ul class="sidebar-nav-list">
+                    <li class="sidebar-nav-item">
+                        <a class="sidebar-nav-link active" id="nav-link-gallery" onclick="switchNavTab('gallery')">
+                            <i class="bi bi-grid-fill"></i>
+                            <span>Thư viện thảo dược</span>
+                        </a>
                     </li>
-                    <li class="nav-item">
-                        <button class="nav-link fw-bold text-success" id="tab-create-text-btn" data-bs-toggle="tab" data-bs-target="#tab-create-text" type="button">✍️ Soạn Thảo & Tạo File Trực Tiếp</button>
+                    <li class="sidebar-nav-item">
+                        <a class="sidebar-nav-link" id="nav-link-vision" onclick="switchNavTab('vision')">
+                            <i class="bi bi-camera"></i>
+                            <span>Nhận diện qua hình ảnh</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-nav-item">
+                        <a class="sidebar-nav-link" id="nav-link-chat" onclick="switchNavTab('chat')">
+                            <i class="bi bi-chat-dots"></i>
+                            <span>Hỏi đáp & Tư vấn</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-nav-item">
+                        <a class="sidebar-nav-link" id="nav-link-missing" onclick="scrollToMissingHerbs()">
+                            <i class="bi bi-hourglass-split"></i>
+                            <span>Cây đợi bổ sung ảnh</span>
+                            <span id="sidebar-missing-badge" class="sidebar-badge d-none">0</span>
+                        </a>
                     </li>
                 </ul>
 
-                <div class="tab-content" id="docUploadTabsContent">
-                    <!-- CHẾ ĐỘ 1: TẢI FILE CÓ SẴN -->
-                    <div class="tab-pane fade show active" id="tab-upload-file">
-                        <p class="text-muted small">File văn bản tải lên sẽ được lưu vào <code>data/raw/</code> và tự động băm chunk, đồng bộ vào ChromaDB.</p>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">Chọn các file .txt từ máy tính:</label>
-                            <input type="file" class="form-control" id="text-files-input" accept=".txt" multiple>
-                        </div>
-                        <button type="button" class="btn btn-primary" onclick="submitTextDocuments()">Tải lên & Đồng bộ</button>
+                <div class="sidebar-section-title">Đóng góp cẩm nang</div>
+                <ul class="sidebar-nav-list">
+                    <li class="sidebar-nav-item">
+                        <a class="sidebar-nav-link" onclick="openTextDocModalDirect()">
+                            <i class="bi bi-pencil-square"></i>
+                            <span>Soạn thảo cây mới</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-nav-item">
+                        <a class="sidebar-nav-link" onclick="openTextDocModalUpload()">
+                            <i class="bi bi-file-earmark-arrow-up"></i>
+                            <span>Tải tệp tư liệu (.txt)</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-nav-item">
+                        <a class="sidebar-nav-link" onclick="openUploadModal('', '')">
+                            <i class="bi bi-images"></i>
+                            <span>Thêm ảnh mẫu mới</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- SIDEBAR FOOTER ADVICE CARD -->
+            <div class="sidebar-footer-card">
+                <div class="sidebar-footer-card-title">
+                    <i class="bi bi-shield-check"></i>
+                    <span>Lời khuyên sử dụng</span>
+                </div>
+                <p class="sidebar-footer-card-desc">
+                    Thông tin công dụng và bài thuốc trong cẩm nang mang tính chất tham khảo dân gian. Luôn tham khảo ý kiến thầy thuốc y học cổ truyền trước khi áp dụng.
+                </p>
+            </div>
+        </aside>
+
+        <!-- ========================================================== -->
+        <!-- MAIN CONTENT AREA                                          -->
+        <!-- ========================================================== -->
+        <main class="app-main">
+            
+            <!-- Hidden bootstrap pills tab triggers to ensure standard tab compatibility -->
+            <ul class="nav nav-pills d-none" id="pills-tab" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" id="tab-gallery-btn" data-bs-toggle="pill" data-bs-target="#tab-gallery"></button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="tab-vision-btn" data-bs-toggle="pill" data-bs-target="#tab-vision"></button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="tab-text-btn" data-bs-toggle="pill" data-bs-target="#tab-text"></button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="pills-tabContent">
+                
+                <!-- ====================================================== -->
+                <!-- TAB 1: THƯ VIỆN THẢO DƯỢC (GALLERY)                    -->
+                <!-- ====================================================== -->
+                <div class="tab-pane fade show active" id="tab-gallery">
+                    
+                    <!-- HERO BANNER -->
+                    <div class="view-hero-banner">
+                        <div class="view-hero-title">🌿 Cẩm Nang & Thư Viện Thảo Dược Dân Gian</div>
+                        <p class="view-hero-desc">
+                            Khám phá các loài cây thuốc cổ truyền Việt Nam, tra cứu đặc tính trị liệu và xem bộ sưu tập hình ảnh mẫu theo từng bộ phận (toàn thân, lá, hoa, rễ củ).
+                        </p>
                     </div>
 
-                    <!-- CHẾ ĐỘ 2: SOẠN THẢO VĂN BẢN TRỰC TIẾP -->
-                    <div class="tab-pane fade" id="tab-create-text">
-                        <p class="text-muted small">Nhập thông tin bên dưới, hệ thống sẽ tự động tạo file <code>.txt</code> chuẩn hóa theo tên cây và lưu vào thư mục hệ thống.</p>
-                        <div class="row g-2 mb-2">
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold">Tên thảo dược <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="direct-herb-name" placeholder="Ví dụ: Đinh Lăng, Kim Ngân Hoa...">
+                    <!-- THẢO DƯỢC CÓ TÀI LIỆU NHƯNG CHƯA CÓ ẢNH (MÀU DỊU, ẤM ÁP) -->
+                    <div id="missing-herbs-section" class="missing-herbs-box d-none">
+                        <div class="missing-herbs-title">
+                            <i class="bi bi-exclamation-circle-fill"></i>
+                            <span>Danh sách các loài cây đang đợi bổ sung hình ảnh thực tế</span>
+                        </div>
+                        <p class="missing-herbs-desc">
+                            Những loài cây này đã có bài viết ghi chép trong cẩm nang nhưng chưa có hình ảnh thực tế đối chiếu. Hãy bấm vào từng cây để cùng góp ảnh bạn nhé!
+                        </p>
+                        <div id="missing-herbs-list" class="d-flex flex-wrap gap-2"></div>
+                    </div>
+
+                    <!-- DANH MỤC THẢO DƯỢC ĐÃ CÓ ẢNH & THANH TÌM KIẾM -->
+                    <div class="card-dark mb-4">
+                        <div class="card-header py-3">
+                            <div class="row align-items-center g-3">
+                                <div class="col-lg-4 col-md-5">
+                                    <span class="fw-bold fs-6 text-herb d-flex align-items-center gap-2">
+                                        <i class="bi bi-collection-fill"></i>
+                                        <span>Bộ sưu tập cây thuốc nam</span>
+                                    </span>
+                                </div>
+                                <div class="col-lg-5 col-md-4">
+                                    <div class="position-relative">
+                                        <input type="text" id="herb-search-input" class="form-control form-control-sm ps-4" 
+                                               placeholder="Tìm theo tên cây hoặc tên khoa học (vd: Đinh lăng, Cà gai leo...)" oninput="handleSearchHerb(event)">
+                                        <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-2 text-muted" style="font-size: 0.8rem;"></i>
+                                    </div>
+                                </div>
+                                <div class="col-lg-3 col-md-3 text-md-end">
+                                    <button class="btn-herb-outline w-100 w-md-auto" onclick="openUploadModal('', '')">
+                                        <i class="bi bi-plus-circle"></i>
+                                        <span>Bổ sung cây mới</span>
+                                    </button>
+                                </div>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Tên khoa học (Danh pháp)</label>
-                                <input type="text" class="form-control" id="direct-sci-name" placeholder="Ví dụ: Polyscias fruticosa">
+                        </div>
+                        <div class="card-body">
+                            <div id="available-herbs-scroll" class="horizontal-scroll">
+                                <div class="text-secondary small p-3">Đang tải danh sách cây thuốc...</div>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- KHU VỰC CHI TIẾT ALBUM ẢNH CỦA CÂY ĐƯỢC CHỌN -->
+                    <div id="herb-detail-section" class="card-dark d-none mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <span id="detail-title" class="fw-bold text-herb fs-6">Album ảnh</span>
+                            <div class="d-flex align-items-center gap-2">
+                                <button class="btn-herb btn-sm" id="btn-add-more-img">
+                                    <i class="bi bi-plus-lg"></i>
+                                    <span>Góp thêm ảnh cho cây này</span>
+                                </button>
+                                <button class="btn-dark-subtle btn-sm" onclick="closeDetail()">
+                                    <i class="bi bi-x-lg"></i>
+                                    <span>Đóng</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-secondary small mb-3">
+                                <i class="bi bi-info-circle text-herb me-1"></i>
+                                <em>Gợi ý: Nhấp vào từng bức ảnh để phóng to xem rõ nét. Dùng phím mũi tên ← / → trên bàn phím để chuyển ảnh.</em>
+                            </p>
+                            <div id="gallery-grid" class="gallery-grid"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ====================================================== -->
+                <!-- TAB 2: NHẬN DIỆN QUA HÌNH ẢNH (VISION)                 -->
+                <!-- ====================================================== -->
+                <div class="tab-pane fade" id="tab-vision">
+                    
+                    <!-- HERO BANNER -->
+                    <div class="view-hero-banner">
+                        <div class="view-hero-title">📸 Nhận Diện Thảo Dược Qua Hình Ảnh</div>
+                        <p class="view-hero-desc">
+                            Chụp hoặc tải lên hình ảnh thảo dược cần tìm hiểu (lá, thân, củ, hoa hoặc quả). Hệ thống sẽ đối chiếu với cẩm nang và cung cấp thông tin đặc điểm, dược tính tương ứng.
+                        </p>
+                    </div>
+
+                    <div class="row g-4">
+                        <div class="col-lg-5">
+                            <div class="card-dark p-4">
+                                <h6 class="fw-bold text-herb mb-3 d-flex align-items-center gap-2">
+                                    <i class="bi bi-cloud-arrow-up-fill"></i>
+                                    <span>1. Chọn ảnh cây thuốc</span>
+                                </h6>
+                                
+                                <div class="upload-dropzone mb-3" onclick="document.getElementById('vision-input-file').click()">
+                                    <i class="bi bi-image"></i>
+                                    <div class="fw-semibold text-primary mb-1">Nhấp để tải ảnh lên</div>
+                                    <div class="text-secondary small">Hỗ trợ JPG, PNG, WEBP (Ảnh chụp rõ nét)</div>
+                                    <input type="file" id="vision-input-file" class="d-none" accept="image/*" onchange="previewVisionImage(event)">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Câu hỏi bạn muốn tìm hiểu thêm (không bắt buộc):</label>
+                                    <input type="text" id="vision-input-question" class="form-control" 
+                                           placeholder="Ví dụ: công dụng trị bệnh, cách sắc uống, lưu ý...">
+                                </div>
+
+                                <button class="btn-herb w-100 py-2 fs-6 fw-bold mb-3" onclick="submitVisionQuery()">
+                                    <i class="bi bi-search"></i>
+                                    <span>Nhận diện loài cây & Tra cứu</span>
+                                </button>
+
+                                <div class="text-center">
+                                    <img id="vision-preview" class="img-fluid rounded d-none border shadow-sm" style="max-height: 250px; object-fit: contain;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-7">
+                            <div class="card-dark p-4">
+                                <h6 class="fw-bold text-herb mb-3 d-flex align-items-center gap-2">
+                                    <i class="bi bi-journal-text"></i>
+                                    <span>2. Kết quả nhận diện & Đối chiếu cẩm nang</span>
+                                </h6>
+
+                                <div id="vision-result-spinner" class="text-center py-5 d-none">
+                                    <div class="spinner-border text-herb" role="status"></div>
+                                    <div class="text-secondary small mt-3">Đang quan sát đặc điểm hình ảnh và tìm kiếm thông tin tương thích trong cẩm nang...</div>
+                                </div>
+
+                                <div id="vision-result-content" class="text-secondary">
+                                    <div class="p-4 text-center rounded border border-dashed" style="border-color: var(--border-subtle) !important;">
+                                        <i class="bi bi-camera fs-1 text-muted d-block mb-2"></i>
+                                        <span>Chưa có ảnh nào được tải lên. Bạn hãy chọn một bức ảnh chụp cây thuốc bên trái để bắt đầu nhé.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ====================================================== -->
+                <!-- TAB 3: TRÒ CHUYỆN & HỎI ĐÁP (CHAT)                     -->
+                <!-- ====================================================== -->
+                <div class="tab-pane fade" id="tab-text">
+                    
+                    <div class="card-dark chat-container-card">
+                        
+                        <!-- CHAT HEADER -->
+                        <div class="chat-header">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="chat-bot-avatar">🌿</div>
+                                <div>
+                                    <div class="fw-bold text-primary fs-6">Trợ lý Cẩm Nang Thảo Dược</div>
+                                    <div class="text-secondary" style="font-size: 0.76rem;">Giải đáp công dụng, bài thuốc, tính vị hoặc gửi ảnh để cùng tìm hiểu</div>
+                                </div>
+                            </div>
+                            <span class="status-badge">
+                                <span class="status-dot"></span>
+                                <span>Sẵn sàng trò chuyện</span>
+                            </span>
+                        </div>
+
+                        <!-- CHAT MESSAGES SCROLL BOX -->
+                        <div id="chat-box" class="chat-box">
+                            <div class="chat-msg chat-bot markdown-body">
+                                Xin chào bạn! Tôi là trợ lý <strong>VietHerb</strong> — người bạn đồng hành cùng bạn tìm hiểu về các loài thảo dược và cây thuốc dân gian Việt Nam. 
+                                <br><br>
+                                Bạn có thể hỏi tôi về đặc điểm, công dụng, cách dùng hoặc bấm biểu tượng 📎 bên dưới để gửi ảnh cây thuốc bạn muốn tìm hiểu nhé!
+                            </div>
+                        </div>
+
+                        <!-- CHAT INPUT & ATTACHMENT AREA -->
+                        <div class="chat-input-area">
+                            
+                            <!-- QUICK SUGGESTIONS CHIPS -->
+                            <div class="chat-suggestions">
+                                <span class="chat-chip" onclick="quickAsk('Cây Đinh Lăng có những công dụng gì?')">🍃 Công dụng cây Đinh Lăng</span>
+                                <span class="chat-chip" onclick="quickAsk('Cà Gai Leo dùng hỗ trợ gan thế nào?')">🌿 Tác dụng Cà Gai Leo</span>
+                                <span class="chat-chip" onclick="quickAsk('Hoa Kim Ngân trị những bệnh gì?')">🌸 Hoa Kim Ngân</span>
+                                <span class="chat-chip" onclick="quickAsk('Cách sử dụng Sâm Ngọc Linh đúng cách?')">🌱 Sâm Ngọc Linh</span>
+                            </div>
+
+                            <!-- KHU VỰC XEM TRƯỚC ẢNH ĐÍNH KÈM -->
+                            <div id="chat-attachment-preview" class="mb-2 p-2 rounded d-none align-items-center justify-content-between" 
+                                 style="max-width: 340px; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle);">
+                                <div class="d-flex align-items-center">
+                                    <img id="chat-img-thumb" src="" class="rounded me-2 border" style="width: 44px; height: 44px; object-fit: cover;">
+                                    <span class="small text-truncate text-primary" id="chat-img-name" style="max-width: 220px; font-weight: 500;">image.jpg</span>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-link text-secondary p-0 ms-2" onclick="clearChatAttachment()" title="Hủy ảnh">
+                                    <i class="bi bi-x-circle-fill fs-6"></i>
+                                </button>
+                            </div>
+
+                            <!-- THANH NHẬP LIỆU CHAT -->
+                            <div class="input-group">
+                                <input type="file" id="chat-file-input" accept="image/*" class="d-none" onchange="handleChatImageSelected(event)">
+                                
+                                <button class="btn btn-dark-subtle" type="button" onclick="document.getElementById('chat-file-input').click()" title="Đính kèm ảnh cây thuốc để hỏi">
+                                    <i class="bi bi-paperclip fs-5"></i>
+                                </button>
+                                
+                                <input type="text" id="chat-input" class="form-control" 
+                                       placeholder="Hỏi về đặc điểm, công dụng thảo dược hoặc gửi kèm ảnh..." onkeypress="handleChatKey(event)">
+                                
+                                <button class="btn-herb" id="chat-send-btn" onclick="sendChatMessage()">
+                                    <span>Gửi câu hỏi</span>
+                                    <i class="bi bi-send-fill ms-1"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- MODAL NẠP TÀI LIỆU VĂN BẢN (.TXT)                              -->
+    <!-- ============================================================== -->
+    <div class="modal fade" id="textDocModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title d-flex align-items-center gap-2">
+                        <i class="bi bi-journal-plus text-herb"></i>
+                        <span>Bổ sung tài liệu vào cẩm nang thảo dược</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-dark" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Tabs lựa chọn cách nạp -->
+                    <ul class="nav nav-tabs mb-3" id="docUploadTabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" id="tab-upload-file-btn" data-bs-toggle="tab" data-bs-target="#tab-upload-file" type="button">
+                                <i class="bi bi-folder2-open me-1"></i> Tải tệp văn bản có sẵn (.txt)
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" id="tab-create-text-btn" data-bs-toggle="tab" data-bs-target="#tab-create-text" type="button">
+                                <i class="bi bi-pencil-square me-1"></i> Soạn thảo cây mới trực tiếp
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="docUploadTabsContent">
+                        <!-- CHẾ ĐỘ 1: TẢI FILE CÓ SẴN -->
+                        <div class="tab-pane fade show active" id="tab-upload-file">
+                            <p class="text-secondary small mb-3">
+                                Các tệp tài liệu văn bản (.txt) tải lên sẽ được lưu vào hệ thống và tự động cập nhật vào danh mục cẩm nang tra cứu.
+                            </p>
+                            <div class="mb-3">
+                                <label class="form-label">Chọn các tệp .txt từ máy tính:</label>
+                                <input type="file" class="form-control" id="text-files-input" accept=".txt" multiple>
+                            </div>
+                            <button type="button" class="btn-herb" onclick="submitTextDocuments()">
+                                <i class="bi bi-cloud-arrow-up-fill"></i>
+                                <span>Tải lên & Cập nhật cẩm nang</span>
+                            </button>
+                        </div>
+
+                        <!-- CHẾ ĐỘ 2: SOẠN THẢO VĂN BẢN TRỰC TIẾP -->
+                        <div class="tab-pane fade" id="tab-create-text">
+                            <p class="text-secondary small mb-3">
+                                Nhập thông tin chi tiết về loài cây bên dưới, hệ thống sẽ tự động lưu lại vào cẩm nang tra cứu chung.
+                            </p>
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Tên thảo dược <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="direct-herb-name" placeholder="Ví dụ: Đinh Lăng, Kim Ngân Hoa...">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Tên khoa học (Danh pháp)</label>
+                                    <input type="text" class="form-control" id="direct-sci-name" placeholder="Ví dụ: Polyscias fruticosa">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Mô tả đặc điểm, bộ phận dùng, tính vị, công dụng & liều dùng <span class="text-danger">*</span></label>
+                                <textarea class="form-control" id="direct-herb-content" rows="6" 
+                                          placeholder="Nhập thông tin chi tiết về đặc điểm hình thái, bộ phận dùng làm thuốc, công dụng chữa bệnh dân gian, cách sắc uống, kiêng kỵ..."></textarea>
+                            </div>
+                            <button type="button" class="btn-herb" onclick="submitCreateTextDoc()">
+                                <i class="bi bi-save2-fill"></i>
+                                <span>Lưu thông tin vào cẩm nang</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="text-upload-status" class="alert alert-info d-none small mt-3" style="background: rgba(56, 189, 248, 0.1); border-color: rgba(56, 189, 248, 0.3); color: #bae6fd;">
+                        <span class="spinner-border spinner-border-sm me-2"></span> Đang lưu trữ và cập nhật vào cẩm nang tra cứu...
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-dark-subtle" data-bs-dismiss="modal">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- MODAL BỔ SUNG / THÊM NHIỀU ẢNH MẪU                             -->
+    <!-- ============================================================== -->
+    <div class="modal fade" id="uploadModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title d-flex align-items-center gap-2" id="uploadModalTitle">
+                        <i class="bi bi-images text-herb"></i>
+                        <span>Thêm ảnh mẫu cho loài cây</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-dark" data-bs-dismiss="modal" id="modal-close-btn"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="uploadForm">
                         <div class="mb-3">
-                            <label class="form-label fw-bold">Nội dung mô tả dược liệu, công dụng & cách dùng <span class="text-danger">*</span></label>
-                            <textarea class="form-control" id="direct-herb-content" rows="6" placeholder="Nhập các thông tin chi tiết về bộ phận dùng, tính vị, thành phần hóa học, công dụng chữa bệnh, liều dùng..."></textarea>
+                            <label class="form-label">Tên thảo dược <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="modal-herb-name" placeholder="Ví dụ: Cà Gai Leo, Đinh Lăng..." required>
                         </div>
-                        <button type="button" class="btn btn-success" onclick="submitCreateTextDoc()">💾 Tạo File & Đồng Bộ RAG</button>
-                    </div>
-                </div>
+                        <div class="mb-3">
+                            <label class="form-label">Tên khoa học (Danh pháp)</label>
+                            <input type="text" class="form-control" id="modal-sci-name" placeholder="Ví dụ: Solanum procumbens">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Bộ phận cây chụp trong ảnh</label>
+                            <select class="form-select" id="modal-image-type">
+                                <option value="Toàn thân">Toàn thân</option>
+                                <option value="Lá cây">Lá cây</option>
+                                <option value="Củ / Rễ">Củ / Rễ</option>
+                                <option value="Hoa / Quả">Hoa / Quả</option>
+                                <option value="Khác">Khác</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Chọn ảnh mẫu chụp rõ nét (có thể chọn nhiều ảnh cùng lúc) <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control" id="modal-files" accept="image/*" multiple required onchange="handleFilesSelected(event)">
+                            <div id="file-count-indicator" class="form-text text-herb mt-1 d-none"></div>
+                        </div>
+                    </form>
 
-                <div id="text-upload-status" class="alert alert-info d-none small mt-3">
-                    <span class="spinner-border spinner-border-sm me-2"></span> Đang xử lý tạo file và cập nhật chỉ mục ChromaDB & BM25...
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- MODAL BỔ SUNG / THÊM NHIỀU ẢNH MẪU -->
-<div class="modal fade" id="uploadModal" tabindex="-1" data-bs-backdrop="static">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title" id="uploadModalTitle">Nạp ảnh mẫu vào ChromaDB</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" id="modal-close-btn"></button>
-            </div>
-            <div class="modal-body">
-                <form id="uploadForm">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Tên thảo dược</label>
-                        <input type="text" class="form-control" id="modal-herb-name" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Tên khoa học (Danh pháp)</label>
-                        <input type="text" class="form-control" id="modal-sci-name">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Phân loại bộ phận</label>
-                        <select class="form-select" id="modal-image-type">
-                            <option value="Toàn thân">Toàn thân</option>
-                            <option value="Lá cây">Lá cây</option>
-                            <option value="Củ / Rễ">Củ / Rễ</option>
-                            <option value="Hoa / Quả">Hoa / Quả</option>
-                            <option value="Khác">Khác</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Chọn ảnh mẫu (Có thể chọn nhiều ảnh cùng lúc)</label>
-                        <input type="file" class="form-control" id="modal-files" accept="image/*" multiple required onchange="handleFilesSelected(event)">
-                        <div id="file-count-indicator" class="form-text text-success d-none"></div>
-                    </div>
-                </form>
-
-                <div id="upload-status-box" class="alert alert-info d-none mt-3" role="alert">
-                    <div class="d-flex align-items-center">
-                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
-                        <div>
-                            <strong>Đang xử lý vector hóa...</strong>
-                            <div class="small" id="upload-status-text">Đang chuyển đổi đặc trưng ảnh bằng mô hình CLIP và lưu vào ChromaDB...</div>
+                    <div id="upload-status-box" class="alert alert-info d-none mt-3" style="background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); color: #a7f3d0;" role="alert">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border spinner-border-sm text-herb me-2" role="status"></div>
+                            <div>
+                                <strong class="d-block">Đang lưu trữ ảnh mẫu...</strong>
+                                <div class="small" id="upload-status-text">Đang phân loại và lưu ảnh mẫu vào cẩm nang tra cứu...</div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="modal-cancel-btn">Hủy</button>
-                <button type="button" class="btn btn-success" id="modal-submit-btn" onclick="submitUploadImage()">💾 Lưu & Vector Hóa</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- MODAL PHÓNG TO ẢNH (LIGHTBOX CÓ ĐIỀU HƯỚNG) -->
-<div class="modal fade" id="lightboxModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-dark text-white">
-                <h6 class="modal-title" id="lightbox-title">Chi tiết ảnh mẫu</h6>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body text-center p-0 bg-black position-relative d-flex align-items-center justify-content-center" style="min-height: 400px;">
-                <button type="button" class="btn btn-dark bg-opacity-50 text-white position-absolute start-0 top-50 translate-middle-y ms-2 rounded-circle border-0 p-2 shadow" id="lightbox-prev-btn" onclick="prevLightboxImage()" title="Ảnh trước (Phím ←)">
-                    ◀
-                </button>
-                <img id="lightbox-img" src="" class="img-fluid" style="max-height: 520px; width: auto; object-fit: contain;">
-                <button type="button" class="btn btn-dark bg-opacity-50 text-white position-absolute end-0 top-50 translate-middle-y me-2 rounded-circle border-0 p-2 shadow" id="lightbox-next-btn" onclick="nextLightboxImage()" title="Ảnh tiếp theo (Phím →)">
-                    ▶
-                </button>
-            </div>
-            <div class="modal-footer bg-light justify-content-between">
-                <span id="lightbox-meta" class="text-muted small"></span>
-                <div>
-                    <span class="text-muted small me-3"><em>Dùng phím ← / → để chuyển ảnh</em></span>
-                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                <div class="modal-footer">
+                    <button type="button" class="btn-dark-subtle" data-bs-dismiss="modal" id="modal-cancel-btn">Hủy</button>
+                    <button type="button" class="btn-herb" id="modal-submit-btn" onclick="submitUploadImage()">
+                        <i class="bi bi-check2-circle"></i>
+                        <span>Lưu ảnh mẫu</span>
+                    </button>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-    let uploadModalInstance = new bootstrap.Modal(document.getElementById('uploadModal'));
-    let lightboxModalInstance = new bootstrap.Modal(document.getElementById('lightboxModal'));
-    let textDocModalInstance = new bootstrap.Modal(document.getElementById('textDocModal'));
-
-    let currentSelectedHerb = "";
-    let rawAvailableHerbs = [];
-    let currentGalleryImages = [];
-    let currentLightboxIndex = 0;
-
-    document.addEventListener("DOMContentLoaded", () => {
-        loadHerbsData();
-    });
-
-    // Helper: Render Markdown thành HTML an toàn
-    function parseMarkdown(mdText) {
-        if (!mdText) return "";
-        const rawHtml = marked.parse(mdText);
-        return DOMPurify.sanitize(rawHtml);
-    }
-
-    function loadHerbsData() {
-        fetch("/api/herbs")
-            .then(res => res.json())
-            .then(data => {
-                // 1. Render Missing Herbs
-                const missingSection = document.getElementById("missing-herbs-section");
-                const missingList = document.getElementById("missing-herbs-list");
-                missingList.innerHTML = "";
-                if (data.missing_herbs && data.missing_herbs.length > 0) {
-                    missingSection.classList.remove("d-none");
-                    data.missing_herbs.forEach(item => {
-                        const tag = document.createElement("div");
-                        tag.className = "btn-group mb-1";
-                        tag.innerHTML = `
-                            <button type="button" class="btn btn-sm btn-outline-dark">📄 ${item.herb_name}</button>
-                            <button type="button" class="btn btn-sm btn-warning" onclick="openUploadModal('${item.herb_name}', '${item.scientific_name || ''}')">➕ Bổ sung ảnh</button>
-                        `;
-                        missingList.appendChild(tag);
-                    });
-                } else {
-                    missingSection.classList.add("d-none");
-                }
-
-                // 2. Lưu danh sách thảo dược để tìm kiếm
-                rawAvailableHerbs = data.available_herbs || [];
-                renderHerbsCards(rawAvailableHerbs);
-            });
-    }
-
-    // Render danh sách thẻ card
-    function renderHerbsCards(herbsList) {
-        const scrollContainer = document.getElementById("available-herbs-scroll");
-        scrollContainer.innerHTML = "";
-        if (herbsList && herbsList.length > 0) {
-            herbsList.forEach(herb => {
-                const card = document.createElement("div");
-                card.className = "card card-herb shadow-sm";
-                card.onclick = () => viewHerbGallery(herb.name);
-                card.innerHTML = `
-                    <img src="${herb.thumbnail || 'https://placehold.co/220x140?text=Chua+co+anh'}" alt="${herb.name}">
-                    <div class="p-2">
-                        <h6 class="mb-0 text-success">${herb.name}</h6>
-                        <div class="text-muted small fst-italic">${herb.scientific_name || 'Chưa rõ'}</div>
-                        <span class="badge bg-light text-dark border mt-1">${herb.image_count} ảnh mẫu</span>
+    <!-- ============================================================== -->
+    <!-- MODAL PHÓNG TO ẢNH (LIGHTBOX CÓ ĐIỀU HƯỚNG)                    -->
+    <!-- ============================================================== -->
+    <div class="modal fade" id="lightboxModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h6 class="modal-title text-herb" id="lightbox-title">Chi tiết ảnh mẫu</h6>
+                    <button type="button" class="btn-close btn-close-dark" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center p-0 position-relative d-flex align-items-center justify-content-center" 
+                     style="min-height: 400px; background: #080d12;">
+                    <button type="button" class="btn btn-dark bg-opacity-75 text-white position-absolute start-0 top-50 translate-middle-y ms-2 rounded-circle border-0 p-2 shadow" 
+                            id="lightbox-prev-btn" onclick="prevLightboxImage()" title="Ảnh trước (Phím ←)">
+                        <i class="bi bi-chevron-left fs-5"></i>
+                    </button>
+                    <img id="lightbox-img" src="" class="img-fluid" style="max-height: 520px; width: auto; object-fit: contain;">
+                    <button type="button" class="btn btn-dark bg-opacity-75 text-white position-absolute end-0 top-50 translate-middle-y me-2 rounded-circle border-0 p-2 shadow" 
+                            id="lightbox-next-btn" onclick="nextLightboxImage()" title="Ảnh tiếp theo (Phím →)">
+                        <i class="bi bi-chevron-right fs-5"></i>
+                    </button>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <span id="lightbox-meta" class="text-secondary small"></span>
+                    <div>
+                        <span class="text-secondary small me-3"><em>Phím ← / → để chuyển ảnh</em></span>
+                        <button type="button" class="btn-dark-subtle btn-sm" data-bs-dismiss="modal">Đóng</button>
                     </div>
-                `;
-                scrollContainer.appendChild(card);
-            });
-        } else {
-            scrollContainer.innerHTML = `<div class="text-muted p-2">Không tìm thấy loài thảo dược nào phù hợp.</div>`;
-        }
-    }
+                </div>
+            </div>
+        </div>
+    </div>
 
-    // Xử lý tìm kiếm thời gian thực
-    function handleSearchHerb(event) {
-        const query = event.target.value.trim().toLowerCase();
-        if (!query) {
-            renderHerbsCards(rawAvailableHerbs);
-            return;
-        }
-        const filtered = rawAvailableHerbs.filter(herb => {
-            const nameMatch = (herb.name || "").toLowerCase().includes(query);
-            const sciMatch = (herb.scientific_name || "").toLowerCase().includes(query);
-            return nameMatch || sciMatch;
+    <!-- BOOTSTRAP 5 JS BUNDLE -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- SCRIPT CHÍNH ĐIỀU HÀNH ỨNG DỤNG -->
+    <script>
+        let uploadModalInstance = new bootstrap.Modal(document.getElementById('uploadModal'));
+        let lightboxModalInstance = new bootstrap.Modal(document.getElementById('lightboxModal'));
+        let textDocModalInstance = new bootstrap.Modal(document.getElementById('textDocModal'));
+
+        let currentSelectedHerb = "";
+        let rawAvailableHerbs = [];
+        let currentGalleryImages = [];
+        let currentLightboxIndex = 0;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            loadHerbsData();
         });
-        renderHerbsCards(filtered);
-    }
 
-    // Modal Upload Text Docs
-    function openTextDocModal() {
-        document.getElementById("text-files-input").value = "";
-        document.getElementById("text-upload-status").classList.add("d-none");
-        textDocModalInstance.show();
-    }
-
-    function submitTextDocuments() {
-        const fileInput = document.getElementById("text-files-input");
-        if (fileInput.files.length === 0) {
-            alert("Vui lòng chọn ít nhất 1 file .txt!");
-            return;
-        }
-
-        const statusBox = document.getElementById("text-upload-status");
-        statusBox.classList.remove("d-none");
-
-        const formData = new FormData();
-        for (let i = 0; i < fileInput.files.length; i++) {
-            formData.append("files", fileInput.files[i]);
-        }
-
-        fetch("/api/rag/text/upload", {
-            method: "POST",
-            body: formData,
-        })
-        .then(res => res.json())
-        .then(data => {
-            statusBox.classList.add("d-none");
-            if (data.success) {
-                textDocModalInstance.hide();
-                alert(data.message);
-                loadHerbsData(); // Tự động hiển thị các cây mới trong mục thiếu ảnh
-            } else {
-                alert("Lỗi: " + data.error);
+        // Chuyển tab đồng bộ giữa Nav Ngang và Nav Dọc
+        function switchNavTab(tabName) {
+            // Cập nhật trạng thái active trên sidebar
+            document.querySelectorAll('.sidebar-nav-link').forEach(link => link.classList.remove('active'));
+            const activeSidebarLink = document.getElementById(`nav-link-${tabName}`);
+            if (activeSidebarLink) {
+                activeSidebarLink.classList.add('active');
             }
-        })
-        .catch(err => {
-            statusBox.classList.add("d-none");
-            alert("Lỗi kết nối máy chủ: " + err);
-        });
-    }
-    
-    function submitCreateTextDoc() {
-        const herbName = document.getElementById("direct-herb-name").value.trim();
-        const sciName = document.getElementById("direct-sci-name").value.trim();
-        const content = document.getElementById("direct-herb-content").value.trim();
 
-        if (!herbName) {
-            alert("Vui lòng nhập tên thảo dược!");
-            return;
-        }
-        if (!content) {
-            alert("Vui lòng nhập nội dung mô tả dược liệu!");
-            return;
-        }
-
-        const statusBox = document.getElementById("text-upload-status");
-        statusBox.classList.remove("d-none");
-
-        fetch("/api/rag/text/create", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                herb_name: herbName,
-                scientific_name: sciName,
-                content: content
-            })
-        })
-        .then(res => res.json())
-        .then(data => {
-            statusBox.classList.add("d-none");
-            if (data.success) {
-                // Xóa dữ liệu form
-                document.getElementById("direct-herb-name").value = "";
-                document.getElementById("direct-sci-name").value = "";
-                document.getElementById("direct-herb-content").value = "";
-
-                textDocModalInstance.hide();
-                alert(data.message);
-                loadHerbsData(); // Cập nhật lại giao diện, cây vừa tạo sẽ tự vào mục cảnh báo thiếu ảnh
-            } else {
-                alert("Lỗi: " + data.error);
+            // Kích hoạt tab bootstrap tương ứng
+            if (tabName === 'gallery') {
+                const btn = document.getElementById('tab-gallery-btn');
+                bootstrap.Tab.getOrCreateInstance(btn).show();
+            } else if (tabName === 'vision') {
+                const btn = document.getElementById('tab-vision-btn');
+                bootstrap.Tab.getOrCreateInstance(btn).show();
+            } else if (tabName === 'chat') {
+                const btn = document.getElementById('tab-text-btn');
+                bootstrap.Tab.getOrCreateInstance(btn).show();
+                setTimeout(() => document.getElementById('chat-input')?.focus(), 200);
             }
-        })
-        .catch(err => {
-            statusBox.classList.add("d-none");
-            alert("Lỗi kết nối máy chủ: " + err);
-        });
-    }
 
-    // Xem Album ảnh của 1 cây
-    function viewHerbGallery(herbName) {
-        currentSelectedHerb = herbName;
-        fetch(`/api/herb/gallery?name=${encodeURIComponent(herbName)}`)
-            .then(res => res.json())
-            .then(data => {
-                document.getElementById("herb-detail-section").classList.remove("d-none");
-                document.getElementById("detail-title").innerText = `🔍 Bộ ảnh của: ${data.herb_name} (${data.images.length} ảnh)`;
-                document.getElementById("btn-add-more-img").onclick = () => openUploadModal(herbName, "");
+            // Đóng sidebar trên thiết bị di động sau khi chọn
+            if (window.innerWidth < 992) {
+                document.getElementById('app-sidebar').classList.remove('show');
+            }
+        }
 
-                currentGalleryImages = data.images || [];
-                const grid = document.getElementById("gallery-grid");
-                grid.innerHTML = "";
+        // Toggle mở/đóng sidebar trên mobile
+        function toggleSidebar() {
+            const sidebar = document.getElementById('app-sidebar');
+            sidebar.classList.toggle('show');
+        }
 
-                if (currentGalleryImages.length === 0) {
-                    grid.innerHTML = `<div class="text-muted small">Cây này chưa có ảnh nào.</div>`;
-                    return;
+        // Chuyển đến mục cây cần bổ sung ảnh
+        function scrollToMissingHerbs() {
+            switchNavTab('gallery');
+            setTimeout(() => {
+                const sec = document.getElementById('missing-herbs-section');
+                if (sec && !sec.classList.contains('d-none')) {
+                    sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
+            }, 150);
+        }
 
-                currentGalleryImages.forEach((img, idx) => {
-                    const item = document.createElement("div");
-                    item.className = "card p-1 shadow-sm gallery-item";
-                    item.innerHTML = `
-                        <img src="${img.url}" onclick="openLightboxByIndex(${idx})" title="Nhấp để phóng to">
-                        <div class="small text-muted mt-1">Phần: ${img.image_type}</div>
-                        <button class="btn btn-sm btn-outline-danger mt-1" onclick="deleteImage('${img.id}')">🗑️ Xóa</button>
-                    `;
-                    grid.appendChild(item);
+        // Mở modal thêm tài liệu theo tab tải file
+        function openTextDocModalUpload() {
+            openTextDocModal();
+            const btn = document.getElementById('tab-upload-file-btn');
+            bootstrap.Tab.getOrCreateInstance(btn).show();
+        }
+
+        // Mở modal thêm tài liệu theo tab viết trực tiếp
+        function openTextDocModalDirect() {
+            openTextDocModal();
+            const btn = document.getElementById('tab-create-text-btn');
+            bootstrap.Tab.getOrCreateInstance(btn).show();
+        }
+
+        // Helper: Render Markdown thành HTML an toàn
+        function parseMarkdown(mdText) {
+            if (!mdText) return "";
+            const rawHtml = marked.parse(mdText);
+            return DOMPurify.sanitize(rawHtml);
+        }
+
+        // Tải danh sách thảo dược từ máy chủ
+        function loadHerbsData() {
+            fetch("/api/herbs")
+                .then(res => res.json())
+                .then(data => {
+                    // Cập nhật thống kê trên thanh điều hướng ngang
+                    const totalSpecies = data.available_herbs ? data.available_herbs.length : 0;
+                    const totalImages = data.total_images || 0;
+                    document.getElementById("top-herb-count").innerText = totalSpecies;
+                    document.getElementById("top-img-count").innerText = totalImages;
+
+                    // 1. Render mục các cây đang thiếu ảnh
+                    const missingSection = document.getElementById("missing-herbs-section");
+                    const missingList = document.getElementById("missing-herbs-list");
+                    const missingBadge = document.getElementById("sidebar-missing-badge");
+                    missingList.innerHTML = "";
+
+                    if (data.missing_herbs && data.missing_herbs.length > 0) {
+                        missingSection.classList.remove("d-none");
+                        missingBadge.innerText = data.missing_herbs.length;
+                        missingBadge.classList.remove("d-none");
+
+                        data.missing_herbs.forEach(item => {
+                            const tag = document.createElement("div");
+                            tag.className = "missing-herb-tag";
+                            tag.innerHTML = `
+                                <span class="missing-herb-tag-name">🌿 ${item.herb_name}</span>
+                                <button type="button" class="missing-herb-tag-btn" onclick="openUploadModal('${item.herb_name}', '${item.scientific_name || ''}')" title="Thêm ảnh mẫu cho cây này">
+                                    + Góp ảnh
+                                </button>
+                            `;
+                            missingList.appendChild(tag);
+                        });
+                    } else {
+                        missingSection.classList.add("d-none");
+                        missingBadge.classList.add("d-none");
+                    }
+
+                    // 2. Lưu danh sách thảo dược để tìm kiếm
+                    rawAvailableHerbs = data.available_herbs || [];
+                    renderHerbsCards(rawAvailableHerbs);
+                })
+                .catch(err => {
+                    console.error("Lỗi khi tải dữ liệu thảo dược:", err);
                 });
-
-                document.getElementById("herb-detail-section").scrollIntoView({ behavior: 'smooth' });
-            })
-            .catch(err => alert("Lỗi tải bộ ảnh: " + err));
-    }
-
-    function updateLightboxDisplay() {
-        if (!currentGalleryImages || currentGalleryImages.length === 0) return;
-        const img = currentGalleryImages[currentLightboxIndex];
-
-        document.getElementById("lightbox-img").src = img.url;
-        document.getElementById("lightbox-title").innerText = `${currentSelectedHerb} — [${img.image_type}]`;
-        document.getElementById("lightbox-meta").innerText = `Ảnh ${currentLightboxIndex + 1}/${currentGalleryImages.length} | ID: ${img.id} | Phân loại: ${img.image_type}`;
-
-        const prevBtn = document.getElementById("lightbox-prev-btn");
-        const nextBtn = document.getElementById("lightbox-next-btn");
-        if (currentGalleryImages.length <= 1) {
-            prevBtn.classList.add("d-none");
-            nextBtn.classList.add("d-none");
-        } else {
-            prevBtn.classList.remove("d-none");
-            nextBtn.classList.remove("d-none");
         }
-    }
 
-    function openLightboxByIndex(index) {
-        if (!currentGalleryImages || !currentGalleryImages[index]) return;
-        currentLightboxIndex = index;
-        updateLightboxDisplay();
-        lightboxModalInstance.show();
-    }
-
-    function prevLightboxImage() {
-        if (!currentGalleryImages || currentGalleryImages.length <= 1) return;
-        currentLightboxIndex = (currentLightboxIndex - 1 + currentGalleryImages.length) % currentGalleryImages.length;
-        updateLightboxDisplay();
-    }
-
-    function nextLightboxImage() {
-        if (!currentGalleryImages || currentGalleryImages.length <= 1) return;
-        currentLightboxIndex = (currentLightboxIndex + 1) % currentGalleryImages.length;
-        updateLightboxDisplay();
-    }
-
-    document.addEventListener("keydown", (e) => {
-        const lightboxEl = document.getElementById("lightboxModal");
-        if (lightboxEl && lightboxEl.classList.contains("show")) {
-            if (e.key === "ArrowLeft") {
-                prevLightboxImage();
-            } else if (e.key === "ArrowRight") {
-                nextLightboxImage();
+        // Render danh sách thẻ card thảo dược
+        function renderHerbsCards(herbsList) {
+            const scrollContainer = document.getElementById("available-herbs-scroll");
+            scrollContainer.innerHTML = "";
+            if (herbsList && herbsList.length > 0) {
+                herbsList.forEach(herb => {
+                    const card = document.createElement("div");
+                    card.className = "card-herb";
+                    card.onclick = () => viewHerbGallery(herb.name);
+                    card.innerHTML = `
+                        <div class="card-herb-img-wrapper">
+                            <img src="${herb.thumbnail || 'https://placehold.co/220x140/0f171f/64748b?text=Chua+co+anh'}" alt="${herb.name}">
+                        </div>
+                        <div class="card-herb-content">
+                            <div class="card-herb-title" title="${herb.name}">${herb.name}</div>
+                            <div class="card-herb-sci" title="${herb.scientific_name || 'Đang cập nhật danh pháp'}">${herb.scientific_name || 'Đang cập nhật'}</div>
+                            <span class="card-herb-badge">
+                                <i class="bi bi-image text-herb"></i>
+                                <span>${herb.image_count} ảnh mẫu</span>
+                            </span>
+                        </div>
+                    `;
+                    scrollContainer.appendChild(card);
+                });
+            } else {
+                scrollContainer.innerHTML = `<div class="text-secondary p-3">Không tìm thấy loài thảo dược nào phù hợp với từ khóa.</div>`;
             }
         }
-    });
 
-    function closeDetail() {
-        document.getElementById("herb-detail-section").classList.add("d-none");
-    }
-
-    function handleFilesSelected(event) {
-        const files = event.target.files;
-        const indicator = document.getElementById("file-count-indicator");
-        if (files && files.length > 0) {
-            indicator.innerText = `✓ Đã chọn ${files.length} tệp ảnh sẵn sàng nạp.`;
-            indicator.classList.remove("d-none");
-        } else {
-            indicator.classList.add("d-none");
-        }
-    }
-
-    function openUploadModal(herbName, sciName) {
-        document.getElementById("modal-herb-name").value = herbName;
-        document.getElementById("modal-sci-name").value = sciName;
-        document.getElementById("modal-files").value = "";
-        document.getElementById("file-count-indicator").classList.add("d-none");
-        
-        document.getElementById("upload-status-box").classList.add("d-none");
-        document.getElementById("modal-submit-btn").disabled = false;
-        document.getElementById("modal-close-btn").disabled = false;
-        document.getElementById("modal-cancel-btn").disabled = false;
-        
-        uploadModalInstance.show();
-    }
-
-    function submitUploadImage() {
-        const name = document.getElementById("modal-herb-name").value.trim();
-        const sci = document.getElementById("modal-sci-name").value.trim();
-        const type = document.getElementById("modal-image-type").value;
-        const fileInput = document.getElementById("modal-files");
-        const files = fileInput.files;
-
-        if (!name) {
-            alert("Vui lòng nhập tên thảo dược!");
-            return;
-        }
-        if (!files || files.length === 0) {
-            alert("Vui lòng chọn ít nhất 1 ảnh mẫu!");
-            return;
+        // Xử lý tìm kiếm thời gian thực
+        function handleSearchHerb(event) {
+            const query = event.target.value.trim().toLowerCase();
+            if (!query) {
+                renderHerbsCards(rawAvailableHerbs);
+                return;
+            }
+            const filtered = rawAvailableHerbs.filter(herb => {
+                const nameMatch = (herb.name || "").toLowerCase().includes(query);
+                const sciMatch = (herb.scientific_name || "").toLowerCase().includes(query);
+                return nameMatch || sciMatch;
+            });
+            renderHerbsCards(filtered);
         }
 
-        const statusBox = document.getElementById("upload-status-box");
-        const statusText = document.getElementById("upload-status-text");
-        const submitBtn = document.getElementById("modal-submit-btn");
-        const closeBtn = document.getElementById("modal-close-btn");
-        const cancelBtn = document.getElementById("modal-cancel-btn");
-
-        statusBox.classList.remove("d-none");
-        statusText.innerText = `Đang vector hóa ${files.length} ảnh mẫu cho cây "${name}" bằng mô hình CLIP cục bộ...`;
-        submitBtn.disabled = true;
-        closeBtn.disabled = true;
-        cancelBtn.disabled = true;
-
-        const formData = new FormData();
-        formData.append("herb_name", name);
-        formData.append("scientific_name", sci);
-        formData.append("image_type", type);
-        for (let i = 0; i < files.length; i++) {
-            formData.append("files", files[i]);
+        // Modal Upload Tài Liệu Văn Bản
+        function openTextDocModal() {
+            document.getElementById("text-files-input").value = "";
+            document.getElementById("text-upload-status").classList.add("d-none");
+            textDocModalInstance.show();
         }
 
-        fetch("/api/herb/image/upload", {
-            method: "POST",
-            body: formData,
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                uploadModalInstance.hide();
-                alert(data.message);
-                loadHerbsData();
-                if (currentSelectedHerb === name) {
-                    viewHerbGallery(name);
+        function submitTextDocuments() {
+            const fileInput = document.getElementById("text-files-input");
+            if (fileInput.files.length === 0) {
+                alert("Vui lòng chọn ít nhất 1 tệp .txt từ máy tính!");
+                return;
+            }
+
+            const statusBox = document.getElementById("text-upload-status");
+            statusBox.classList.remove("d-none");
+
+            const formData = new FormData();
+            for (let i = 0; i < fileInput.files.length; i++) {
+                formData.append("files", fileInput.files[i]);
+            }
+
+            fetch("/api/rag/text/upload", {
+                method: "POST",
+                body: formData,
+            })
+            .then(res => res.json())
+            .then(data => {
+                statusBox.classList.add("d-none");
+                if (data.success) {
+                    textDocModalInstance.hide();
+                    alert(data.message);
+                    loadHerbsData(); // Cập nhật danh sách cây
+                } else {
+                    alert("Không thể lưu tài liệu: " + data.error);
                 }
+            })
+            .catch(err => {
+                statusBox.classList.add("d-none");
+                alert("Lỗi kết nối máy chủ: " + err);
+            });
+        }
+        
+        function submitCreateTextDoc() {
+            const herbName = document.getElementById("direct-herb-name").value.trim();
+            const sciName = document.getElementById("direct-sci-name").value.trim();
+            const content = document.getElementById("direct-herb-content").value.trim();
+
+            if (!herbName) {
+                alert("Vui lòng nhập tên loài thảo dược!");
+                return;
+            }
+            if (!content) {
+                alert("Vui lòng nhập nội dung mô tả đặc điểm hoặc bài thuốc!");
+                return;
+            }
+
+            const statusBox = document.getElementById("text-upload-status");
+            statusBox.classList.remove("d-none");
+
+            fetch("/api/rag/text/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    herb_name: herbName,
+                    scientific_name: sciName,
+                    content: content
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                statusBox.classList.add("d-none");
+                if (data.success) {
+                    document.getElementById("direct-herb-name").value = "";
+                    document.getElementById("direct-sci-name").value = "";
+                    document.getElementById("direct-herb-content").value = "";
+
+                    textDocModalInstance.hide();
+                    alert(data.message);
+                    loadHerbsData(); // Cập nhật lại giao diện
+                } else {
+                    alert("Không thể lưu: " + data.error);
+                }
+            })
+            .catch(err => {
+                statusBox.classList.add("d-none");
+                alert("Lỗi kết nối máy chủ: " + err);
+            });
+        }
+
+        // Xem Album ảnh của 1 loài cây
+        function viewHerbGallery(herbName) {
+            currentSelectedHerb = herbName;
+            fetch(`/api/herb/gallery?name=${encodeURIComponent(herbName)}`)
+                .then(res => res.json())
+                .then(data => {
+                    const detailSection = document.getElementById("herb-detail-section");
+                    detailSection.classList.remove("d-none");
+                    document.getElementById("detail-title").innerHTML = `
+                        <i class="bi bi-images text-herb me-1"></i> Bộ ảnh mẫu: <span class="text-white">${data.herb_name}</span> (${data.images.length} ảnh)
+                    `;
+                    document.getElementById("btn-add-more-img").onclick = () => openUploadModal(herbName, "");
+
+                    currentGalleryImages = data.images || [];
+                    const grid = document.getElementById("gallery-grid");
+                    grid.innerHTML = "";
+
+                    if (currentGalleryImages.length === 0) {
+                        grid.innerHTML = `<div class="text-secondary small p-3">Loài cây này hiện chưa có hình ảnh mẫu nào.</div>`;
+                        return;
+                    }
+
+                    currentGalleryImages.forEach((img, idx) => {
+                        const item = document.createElement("div");
+                        item.className = "gallery-item";
+                        item.innerHTML = `
+                            <img src="${img.url}" onclick="openLightboxByIndex(${idx})" title="Nhấp để phóng to xem rõ">
+                            <div class="gallery-item-footer">
+                                <span>Phần: <strong class="text-herb">${img.image_type}</strong></span>
+                                <button class="btn btn-sm btn-link text-danger p-0 text-decoration-none" onclick="deleteImage('${img.id}')" title="Xóa ảnh này">
+                                    <i class="bi bi-trash3"></i> Xóa
+                                </button>
+                            </div>
+                        `;
+                        grid.appendChild(item);
+                    });
+
+                    detailSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                })
+                .catch(err => alert("Lỗi khi tải bộ ảnh: " + err));
+        }
+
+        function updateLightboxDisplay() {
+            if (!currentGalleryImages || currentGalleryImages.length === 0) return;
+            const img = currentGalleryImages[currentLightboxIndex];
+
+            document.getElementById("lightbox-img").src = img.url;
+            document.getElementById("lightbox-title").innerText = `${currentSelectedHerb} — [${img.image_type}]`;
+            document.getElementById("lightbox-meta").innerText = `Ảnh ${currentLightboxIndex + 1}/${currentGalleryImages.length} | Bộ phận: ${img.image_type}`;
+
+            const prevBtn = document.getElementById("lightbox-prev-btn");
+            const nextBtn = document.getElementById("lightbox-next-btn");
+            if (currentGalleryImages.length <= 1) {
+                prevBtn.classList.add("d-none");
+                nextBtn.classList.add("d-none");
             } else {
-                alert("Lỗi tải ảnh: " + (data.error || "Không thể xử lý"));
+                prevBtn.classList.remove("d-none");
+                nextBtn.classList.remove("d-none");
+            }
+        }
+
+        function openLightboxByIndex(index) {
+            if (!currentGalleryImages || !currentGalleryImages[index]) return;
+            currentLightboxIndex = index;
+            updateLightboxDisplay();
+            lightboxModalInstance.show();
+        }
+
+        function openLightboxSingle(url, title, type) {
+            currentGalleryImages = [{ url: url, image_type: type, id: 'single_view' }];
+            currentLightboxIndex = 0;
+            currentSelectedHerb = title;
+            updateLightboxDisplay();
+            lightboxModalInstance.show();
+        }
+
+        function prevLightboxImage() {
+            if (!currentGalleryImages || currentGalleryImages.length <= 1) return;
+            currentLightboxIndex = (currentLightboxIndex - 1 + currentGalleryImages.length) % currentGalleryImages.length;
+            updateLightboxDisplay();
+        }
+
+        function nextLightboxImage() {
+            if (!currentGalleryImages || currentGalleryImages.length <= 1) return;
+            currentLightboxIndex = (currentLightboxIndex + 1) % currentGalleryImages.length;
+            updateLightboxDisplay();
+        }
+
+        document.addEventListener("keydown", (e) => {
+            const lightboxEl = document.getElementById("lightboxModal");
+            if (lightboxEl && lightboxEl.classList.contains("show")) {
+                if (e.key === "ArrowLeft") {
+                    prevLightboxImage();
+                } else if (e.key === "ArrowRight") {
+                    nextLightboxImage();
+                }
+            }
+        });
+
+        function closeDetail() {
+            document.getElementById("herb-detail-section").classList.add("d-none");
+        }
+
+        function handleFilesSelected(event) {
+            const files = event.target.files;
+            const indicator = document.getElementById("file-count-indicator");
+            if (files && files.length > 0) {
+                indicator.innerText = `✓ Đã chọn ${files.length} tệp ảnh sẵn sàng cập nhật.`;
+                indicator.classList.remove("d-none");
+            } else {
+                indicator.classList.add("d-none");
+            }
+        }
+
+        function openUploadModal(herbName, sciName) {
+            document.getElementById("modal-herb-name").value = herbName;
+            document.getElementById("modal-sci-name").value = sciName;
+            document.getElementById("modal-files").value = "";
+            document.getElementById("file-count-indicator").classList.add("d-none");
+            
+            document.getElementById("upload-status-box").classList.add("d-none");
+            document.getElementById("modal-submit-btn").disabled = false;
+            document.getElementById("modal-close-btn").disabled = false;
+            document.getElementById("modal-cancel-btn").disabled = false;
+            
+            uploadModalInstance.show();
+        }
+
+        function submitUploadImage() {
+            const name = document.getElementById("modal-herb-name").value.trim();
+            const sci = document.getElementById("modal-sci-name").value.trim();
+            const type = document.getElementById("modal-image-type").value;
+            const fileInput = document.getElementById("modal-files");
+            const files = fileInput.files;
+
+            if (!name) {
+                alert("Vui lòng nhập tên loài thảo dược!");
+                return;
+            }
+            if (!files || files.length === 0) {
+                alert("Vui lòng chọn ít nhất 1 bức ảnh mẫu!");
+                return;
+            }
+
+            const statusBox = document.getElementById("upload-status-box");
+            const statusText = document.getElementById("upload-status-text");
+            const submitBtn = document.getElementById("modal-submit-btn");
+            const closeBtn = document.getElementById("modal-close-btn");
+            const cancelBtn = document.getElementById("modal-cancel-btn");
+
+            statusBox.classList.remove("d-none");
+            statusText.innerText = `Đang lưu trữ và cập nhật ${files.length} ảnh mẫu cho cây "${name}"...`;
+            submitBtn.disabled = true;
+            closeBtn.disabled = true;
+            cancelBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append("herb_name", name);
+            formData.append("scientific_name", sci);
+            formData.append("image_type", type);
+            for (let i = 0; i < files.length; i++) {
+                formData.append("files", files[i]);
+            }
+
+            fetch("/api/herb/image/upload", {
+                method: "POST",
+                body: formData,
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    uploadModalInstance.hide();
+                    alert(data.message);
+                    loadHerbsData();
+                    if (currentSelectedHerb === name) {
+                        viewHerbGallery(name);
+                    }
+                } else {
+                    alert("Không thể lưu ảnh: " + (data.error || "Có lỗi xảy ra"));
+                    statusBox.classList.add("d-none");
+                    submitBtn.disabled = false;
+                    closeBtn.disabled = false;
+                    cancelBtn.disabled = false;
+                }
+            })
+            .catch(err => {
+                alert("Lỗi kết nối máy chủ: " + err);
                 statusBox.classList.add("d-none");
                 submitBtn.disabled = false;
                 closeBtn.disabled = false;
                 cancelBtn.disabled = false;
-            }
-        })
-        .catch(err => {
-            alert("Lỗi kết nối máy chủ: " + err);
-            statusBox.classList.add("d-none");
-            submitBtn.disabled = false;
-            closeBtn.disabled = false;
-            cancelBtn.disabled = false;
-        });
-    }
-
-    function deleteImage(imgId) {
-        if (!confirm("Bạn có chắc muốn xóa ảnh này khỏi ChromaDB?")) return;
-        fetch("/api/herb/image/delete", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ image_id: imgId })
-        }).then(res => res.json())
-          .then(data => {
-              if (data.success) {
-                  viewHerbGallery(currentSelectedHerb);
-                  loadHerbsData();
-              }
-          });
-    }
-
-    // --- VISUAL RAG ---
-    let currentUploadedImageBlob = null;
-    function previewVisionImage(event) {
-        const file = event.target.files[0];
-        if (file) {
-            currentUploadedImageBlob = URL.createObjectURL(file);
-            const preview = document.getElementById("vision-preview");
-            preview.src = currentUploadedImageBlob;
-            preview.classList.remove("d-none");
-        }
-    }
-
-    function submitVisionQuery() {
-        const fileInput = document.getElementById("vision-input-file");
-        const question = document.getElementById("vision-input-question").value;
-        if (fileInput.files.length === 0) {
-            alert("Vui lòng chọn ảnh!");
-            return;
-        }
-
-        const spinner = document.getElementById("vision-result-spinner");
-        const content = document.getElementById("vision-result-content");
-        spinner.classList.remove("d-none");
-        content.innerHTML = "";
-
-        const formData = new FormData();
-        formData.append("file", fileInput.files[0]);
-        formData.append("question", question);
-
-        fetch("/api/rag/vision", { method: "POST", body: formData })
-            .then(res => res.json())
-            .then(res => {
-                spinner.classList.add("d-none");
-                if (res.matched) {
-                    const matchedImgUrl = res.matched_image_path ? `/api/image/view?path=${encodeURIComponent(res.matched_image_path)}` : '';
-                    content.innerHTML = `
-                        <div class="alert alert-success shadow-sm">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h5 class="mb-0 fw-bold">🎯 ${res.herb_name}</h5>
-                                    <div class="fst-italic text-muted">${res.scientific_name || ''}</div>
-                                </div>
-                                <span class="badge bg-success fs-6">${res.similarity_score}% khớp</span>
-                            </div>
-                            <div class="progress mt-2" style="height: 8px;">
-                                <div class="progress-bar bg-success" role="progressbar" style="width: ${res.similarity_score}%;"></div>
-                            </div>
-                        </div>
-
-                        <!-- SO SÁNH ẢNH SONG SONG -->
-                        <div class="row g-2 mb-3">
-                            <div class="col-6 text-center">
-                                <div class="small fw-bold text-muted mb-1">Ảnh bạn tải lên</div>
-                                <img src="${currentUploadedImageBlob}" class="compare-img">
-                            </div>
-                            <div class="col-6 text-center">
-                                <div class="small fw-bold text-muted mb-1">Mẫu đối chiếu trong kho</div>
-                                <img src="${matchedImgUrl || 'https://placehold.co/200x180?text=Mau+Doi+Chieu'}" class="compare-img">
-                            </div>
-                        </div>
-
-                        <!-- RENDER MARKDOWN BẰNG MARKED.JS -->
-                        <div class="p-3 border rounded bg-white shadow-sm markdown-body">${parseMarkdown(res.answer)}</div>
-                        <div class="mt-2 text-muted small"><strong>📚 Tài liệu trích xuất:</strong> ${res.sources.join(', ')}</div>
-                    `;
-                } else {
-                    content.innerHTML = `<div class="alert alert-warning shadow-sm markdown-body">${parseMarkdown(res.answer)}</div>`;
-                }
-            })
-            .catch(err => {
-                spinner.classList.add("d-none");
-                content.innerHTML = `<div class="alert alert-danger">Lỗi kết nối máy chủ: ${err}</div>`;
             });
-    }
-
-    // --- TEXT RAG ---
-    // Biến lưu file ảnh đính kèm trong chat
-    let selectedChatImageFile = null;
-
-    // Bắt sự kiện khi người dùng chọn ảnh qua nút 📎
-    function handleChatImageSelected(event) {
-        const file = event.target.files[0];
-        if (file) {
-            selectedChatImageFile = file;
-            document.getElementById("chat-img-thumb").src = URL.createObjectURL(file);
-            document.getElementById("chat-img-name").innerText = file.name;
-            
-            const previewBox = document.getElementById("chat-attachment-preview");
-            previewBox.classList.remove("d-none");
-            previewBox.classList.add("d-flex");
-        }
-    }
-
-    // Xóa ảnh đã chọn nếu không muốn gửi nữa
-    function clearChatAttachment() {
-        selectedChatImageFile = null;
-        document.getElementById("chat-file-input").value = "";
-        const previewBox = document.getElementById("chat-attachment-preview");
-        previewBox.classList.add("d-none");
-        previewBox.classList.remove("d-flex");
-    }
-
-    function handleChatKey(e) { 
-        if (e.key === 'Enter') sendChatMessage(); 
-    }
-
-    // Gửi tin nhắn và render phản hồi (kèm ảnh)
-    function sendChatMessage() {
-        const input = document.getElementById("chat-input");
-        const text = input.value.trim();
-        const file = selectedChatImageFile;
-
-        if (!text && !file) return;
-
-        const box = document.getElementById("chat-box");
-        const sendBtn = document.getElementById("chat-send-btn");
-
-        // 1. RENDER TIN NHẮN CỦA USER: Nếu có đính kèm ảnh thì vẽ ảnh ra bong bóng chat
-        let userMsgHtml = `<div class="chat-msg chat-user shadow-sm">`;
-        if (file) {
-            const tempImgUrl = URL.createObjectURL(file);
-            userMsgHtml += `
-                <div class="mb-2">
-                    <img src="${tempImgUrl}" class="rounded border shadow-sm" style="max-height: 160px; max-width: 100%; object-fit: cover;">
-                </div>`;
-        }
-        if (text) {
-            userMsgHtml += `<div>${text}</div>`;
-        }
-        userMsgHtml += `</div>`;
-
-        box.innerHTML += userMsgHtml;
-        input.value = "";
-        clearChatAttachment(); // Reset ô preview
-        box.scrollTop = box.scrollHeight;
-
-        // 2. Hiển thị thông báo bot đang tra cứu
-        const loadingId = "bot-loading-" + Date.now();
-        box.innerHTML += `
-            <div id="${loadingId}" class="chat-msg chat-bot text-muted shadow-sm">
-                <span class="spinner-border spinner-border-sm me-2"></span> Đang tra cứu tri thức và hình thái học...
-            </div>`;
-        box.scrollTop = box.scrollHeight;
-        sendBtn.disabled = true;
-
-        // 3. Đóng gói dữ liệu multipart gửi qua API
-        const formData = new FormData();
-        formData.append("question", text);
-        if (file) {
-            formData.append("image", file);
         }
 
-        fetch("/api/rag/text", {
-            method: "POST",
-            body: formData
-        })
-        .then(res => res.json())
-        .then(data => {
-            document.getElementById(loadingId)?.remove();
-            sendBtn.disabled = false;
+        function deleteImage(imgId) {
+            if (!confirm("Bạn có chắc chắn muốn xóa bức ảnh mẫu này không?")) return;
+            fetch("/api/herb/image/delete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ image_id: imgId })
+            }).then(res => res.json())
+              .then(data => {
+                  if (data.success) {
+                      viewHerbGallery(currentSelectedHerb);
+                      loadHerbsData();
+                  }
+              });
+        }
 
-            if (data.error) {
-                box.innerHTML += `<div class="chat-msg chat-bot text-danger shadow-sm">⚠️ ${data.error}</div>`;
+        // ==============================================================
+        // NHẬN DIỆN QUA HÌNH ẢNH (VISION)
+        // ==============================================================
+        let currentUploadedImageBlob = null;
+        function previewVisionImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                currentUploadedImageBlob = URL.createObjectURL(file);
+                const preview = document.getElementById("vision-preview");
+                preview.src = currentUploadedImageBlob;
+                preview.classList.remove("d-none");
+            }
+        }
+
+        function submitVisionQuery() {
+            const fileInput = document.getElementById("vision-input-file");
+            const question = document.getElementById("vision-input-question").value;
+            if (fileInput.files.length === 0) {
+                alert("Vui lòng chọn ảnh chụp cây thuốc trước khi tra cứu!");
                 return;
             }
 
-            // Render Markdown an toàn
-            const parsedContent = parseMarkdown(data.answer);
+            const spinner = document.getElementById("vision-result-spinner");
+            const content = document.getElementById("vision-result-content");
+            spinner.classList.remove("d-none");
+            content.innerHTML = "";
 
-            // 4. RENDER ẢNH CỦA BOT: Nếu backend có trả về "attached_image" thì render khung ảnh này
-            let attachedImgHtml = "";
-            if (data.attached_image && data.attached_image.url) {
-                attachedImgHtml = `
-                    <div class="card my-2 border-success shadow-sm" style="max-width: 260px; overflow: hidden;">
-                        <img src="${data.attached_image.url}" class="card-img-top" style="height: 140px; object-fit: cover; cursor: pointer;" 
-                             onclick="openLightbox('${data.attached_image.url}', '${data.attached_image.herb_name}', 'Ảnh mẫu đối chiếu', 'bot_ref')" 
-                             title="Nhấp để phóng to">
-                        <div class="card-body p-2 bg-light">
-                            <div class="fw-bold text-success small">🌿 Mẫu đối chứng: ${data.attached_image.herb_name}</div>
-                            <div class="fst-italic text-muted" style="font-size: 0.75rem;">${data.attached_image.scientific_name || ''}</div>
-                        </div>
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+            formData.append("question", question);
+
+            fetch("/api/rag/vision", { method: "POST", body: formData })
+                .then(res => res.json())
+                .then(res => {
+                    spinner.classList.add("d-none");
+                    if (res.matched) {
+                        const matchedImgUrl = res.matched_image_path ? `/api/image/view?path=${encodeURIComponent(res.matched_image_path)}` : '';
+                        content.innerHTML = `
+                            <div class="card p-3 mb-3" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3);">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                    <div>
+                                        <h5 class="mb-0 fw-bold text-white">🎯 ${res.herb_name}</h5>
+                                        <div class="fst-italic text-herb small">${res.scientific_name || ''}</div>
+                                    </div>
+                                    <span class="similarity-badge">Khớp ${res.similarity_score}%</span>
+                                </div>
+                                <div class="progress mt-2" style="height: 6px; background: rgba(255,255,255,0.1);">
+                                    <div class="progress-bar" role="progressbar" style="width: ${res.similarity_score}%; background: var(--herb-primary);"></div>
+                                </div>
+                            </div>
+
+                            <!-- SO SÁNH ẢNH SONG SONG -->
+                            <div class="row g-3 mb-3">
+                                <div class="col-6 text-center">
+                                    <div class="small fw-semibold text-secondary mb-1">Ảnh bạn tải lên</div>
+                                    <img src="${currentUploadedImageBlob}" class="compare-img">
+                                </div>
+                                <div class="col-6 text-center">
+                                    <div class="small fw-semibold text-secondary mb-1">Ảnh đối chiếu trong cẩm nang</div>
+                                    <img src="${matchedImgUrl || 'https://placehold.co/200x180/0f171f/64748b?text=Mau+Doi+Chieu'}" class="compare-img">
+                                </div>
+                            </div>
+
+                            <!-- THÔNG TIN CHI TIẾT TRÍCH XUẤT -->
+                            <div class="p-3 rounded mb-2 markdown-body" style="background: var(--bg-surface); border: 1px solid var(--border-subtle);">${parseMarkdown(res.answer)}</div>
+                            <div class="text-secondary small mt-2">
+                                <i class="bi bi-book text-herb me-1"></i><strong>Tham khảo từ cẩm nang:</strong> ${res.sources.join(', ')}
+                            </div>
+                        `;
+                    } else {
+                        content.innerHTML = `
+                            <div class="p-3 rounded markdown-body" style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); color: #fef3c7;">
+                                ${parseMarkdown(res.answer)}
+                            </div>
+                        `;
+                    }
+                })
+                .catch(err => {
+                    spinner.classList.add("d-none");
+                    content.innerHTML = `<div class="alert alert-danger">Lỗi kết nối máy chủ: ${err}</div>`;
+                });
+        }
+
+        // ==============================================================
+        // TRÒ CHUYỆN & TƯ VẤN (CHAT)
+        // ==============================================================
+        let selectedChatImageFile = null;
+
+        function quickAsk(questionText) {
+            const input = document.getElementById("chat-input");
+            input.value = questionText;
+            input.focus();
+        }
+
+        function handleChatImageSelected(event) {
+            const file = event.target.files[0];
+            if (file) {
+                selectedChatImageFile = file;
+                document.getElementById("chat-img-thumb").src = URL.createObjectURL(file);
+                document.getElementById("chat-img-name").innerText = file.name;
+                
+                const previewBox = document.getElementById("chat-attachment-preview");
+                previewBox.classList.remove("d-none");
+                previewBox.classList.add("d-flex");
+            }
+        }
+
+        function clearChatAttachment() {
+            selectedChatImageFile = null;
+            document.getElementById("chat-file-input").value = "";
+            const previewBox = document.getElementById("chat-attachment-preview");
+            previewBox.classList.add("d-none");
+            previewBox.classList.remove("d-flex");
+        }
+
+        function handleChatKey(e) { 
+            if (e.key === 'Enter') sendChatMessage(); 
+        }
+
+        function sendChatMessage() {
+            const input = document.getElementById("chat-input");
+            const text = input.value.trim();
+            const file = selectedChatImageFile;
+
+            if (!text && !file) return;
+
+            const box = document.getElementById("chat-box");
+            const sendBtn = document.getElementById("chat-send-btn");
+
+            // 1. RENDER TIN NHẮN CỦA NGƯỜI DÙNG
+            let userMsgHtml = `<div class="chat-msg chat-user shadow-sm">`;
+            if (file) {
+                const tempImgUrl = URL.createObjectURL(file);
+                userMsgHtml += `
+                    <div class="mb-2">
+                        <img src="${tempImgUrl}" class="rounded border shadow-sm" style="max-height: 160px; max-width: 100%; object-fit: cover;">
                     </div>`;
             }
+            if (text) {
+                userMsgHtml += `<div>${text}</div>`;
+            }
+            userMsgHtml += `</div>`;
 
-            // Nguồn tài liệu tham khảo
-            const sourcesHtml = data.sources && data.sources.length > 0 
-                ? `<div class="mt-2 text-muted small border-top pt-1">📚 Nguồn: ${data.sources.join(', ')}</div>` 
-                : '';
+            box.innerHTML += userMsgHtml;
+            input.value = "";
+            clearChatAttachment();
+            box.scrollTop = box.scrollHeight;
 
-            // Ghép toàn bộ vào bong bóng chat của Bot
+            // 2. HIỂN THỊ TRẠNG THÁI BOT ĐANG SOẠN CÂU TRẢ LỜI
+            const loadingId = "bot-loading-" + Date.now();
             box.innerHTML += `
-                <div class="chat-msg chat-bot markdown-body shadow-sm">
-                    ${attachedImgHtml}
-                    ${parsedContent}
-                    ${sourcesHtml}
+                <div id="${loadingId}" class="chat-msg chat-bot text-secondary shadow-sm">
+                    <span class="spinner-border spinner-border-sm text-herb me-2"></span> Đang tra cứu cẩm nang và tổng hợp thông tin gửi bạn...
                 </div>`;
             box.scrollTop = box.scrollHeight;
-        })
-        .catch(err => {
-            document.getElementById(loadingId)?.remove();
-            sendBtn.disabled = false;
-            box.innerHTML += `<div class="chat-msg chat-bot text-danger shadow-sm">Lỗi kết nối máy chủ: ${err}</div>`;
-            box.scrollTop = box.scrollHeight;
-        });
-    }
-</script>
+            sendBtn.disabled = true;
+
+            // 3. GỬI DỮ LIỆU ĐẾN MÁY CHỦ
+            const formData = new FormData();
+            formData.append("question", text);
+            if (file) {
+                formData.append("image", file);
+            }
+
+            fetch("/api/rag/text", {
+                method: "POST",
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById(loadingId)?.remove();
+                sendBtn.disabled = false;
+
+                if (data.error) {
+                    box.innerHTML += `<div class="chat-msg chat-bot text-danger shadow-sm"><i class="bi bi-exclamation-triangle me-1"></i> ${data.error}</div>`;
+                    return;
+                }
+
+                const parsedContent = parseMarkdown(data.answer);
+
+                // 4. RENDER ẢNH MINH HỌA NẾU CÓ
+                let attachedImgHtml = "";
+                if (data.attached_image && data.attached_image.url) {
+                    attachedImgHtml = `
+                        <div class="card my-2 border-0 shadow-sm" style="max-width: 260px; overflow: hidden; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle) !important;">
+                            <img src="${data.attached_image.url}" class="card-img-top" style="height: 140px; object-fit: cover; cursor: pointer;" 
+                                 onclick="openLightboxSingle('${data.attached_image.url}', '${data.attached_image.herb_name}', 'Ảnh đối chiếu')" 
+                                 title="Nhấp để xem rõ nét">
+                            <div class="card-body p-2">
+                                <div class="fw-bold text-herb small">🌿 Cây đối chiếu: ${data.attached_image.herb_name}</div>
+                                <div class="fst-italic text-secondary" style="font-size: 0.72rem;">${data.attached_image.scientific_name || ''}</div>
+                            </div>
+                        </div>`;
+                }
+
+                // Nguồn tài liệu tham khảo
+                const sourcesHtml = data.sources && data.sources.length > 0 
+                    ? `<div class="mt-2 text-secondary small border-top pt-2" style="border-color: var(--border-subtle) !important;">
+                         <i class="bi bi-book text-herb me-1"></i><strong>Tham khảo từ:</strong> ${data.sources.join(', ')}
+                       </div>` 
+                    : '';
+
+                box.innerHTML += `
+                    <div class="chat-msg chat-bot markdown-body shadow-sm">
+                        ${attachedImgHtml}
+                        ${parsedContent}
+                        ${sourcesHtml}
+                    </div>`;
+                box.scrollTop = box.scrollHeight;
+            })
+            .catch(err => {
+                document.getElementById(loadingId)?.remove();
+                sendBtn.disabled = false;
+                box.innerHTML += `<div class="chat-msg chat-bot text-danger shadow-sm">Lỗi kết nối máy chủ: ${err}</div>`;
+                box.scrollTop = box.scrollHeight;
+            });
+        }
+    </script>
 </body>
 </html>
