@@ -448,9 +448,15 @@
                                 </div>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">Mô tả đặc điểm, bộ phận dùng, tính vị, công dụng & liều dùng <span class="text-danger">*</span></label>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <label class="form-label mb-0">Mô tả đặc điểm, bộ phận dùng, tính vị, công dụng & liều dùng <span class="text-danger">*</span></label>
+                                    <button type="button" class="btn-ai-format" id="btn-format-direct" onclick="autoFormatDirectDoc()" title="Dùng AI phân tích cú pháp và chuẩn hóa tài liệu theo cấu trúc chuẩn">
+                                        <i class="bi bi-stars me-1 text-herb"></i>
+                                        <span>AI Chuẩn hóa</span>
+                                    </button>
+                                </div>
                                 <textarea class="form-control" id="direct-herb-content" rows="6" 
-                                          placeholder="Nhập thông tin chi tiết về đặc điểm hình thái, bộ phận dùng làm thuốc, công dụng chữa bệnh dân gian, cách sắc uống, kiêng kỵ..."></textarea>
+                                          placeholder="Nhập thông tin chi tiết hoặc dán bài viết thô... Bạn có thể bấm 'AI Chuẩn hóa' để tự động định dạng chuẩn cẩm nang."></textarea>
                             </div>
                             <button type="button" class="btn-herb" onclick="submitCreateTextDoc()">
                                 <i class="bi bi-save2-fill"></i>
@@ -501,7 +507,13 @@
                     <div class="mb-3">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <label class="form-label mb-0 fw-semibold">Nội dung văn bản chi tiết (.txt):</label>
-                            <span class="text-secondary small" id="edit-doc-char-count">0 ký tự | 0 dòng</span>
+                            <div class="d-flex align-items-center gap-2">
+                                <button type="button" class="btn-ai-format" id="btn-format-edit-doc" onclick="autoFormatEditDoc()" title="AI tự động phân tích và chuẩn hóa theo mẫu: Danh pháp, Bộ phận dùng, Dược tính, Bài thuốc...">
+                                    <i class="bi bi-stars me-1 text-herb"></i>
+                                    <span>AI Chuẩn hóa cấu trúc</span>
+                                </button>
+                                <span class="text-secondary small" id="edit-doc-char-count">0 ký tự | 0 dòng</span>
+                            </div>
                         </div>
                         <textarea class="form-control font-monospace" id="edit-doc-content" rows="13" 
                                   placeholder="Đang nạp dữ liệu tài liệu..."
@@ -1071,6 +1083,99 @@
             });
         }
 
+        // ==============================================================
+        // AI AUTO FORMATTING AGENT (CHUẨN HÓA CẤU TRÚC TÀI LIỆU)
+        // ==============================================================
+        function autoFormatEditDoc() {
+            const content = document.getElementById("edit-doc-content").value.trim();
+            const herbName = document.getElementById("edit-doc-herb-name-hidden").value.trim();
+            const alertBox = document.getElementById("edit-doc-alert");
+
+            if (!content) {
+                alert("Nội dung tài liệu đang trống, vui lòng nhập nội dung cần chuẩn hóa!");
+                return;
+            }
+
+            const btn = document.getElementById("btn-format-edit-doc");
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>AI đang đọc lướt & chuẩn hóa...`;
+
+            fetch("/api/rag/text/format", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    content: content,
+                    herb_name: herbName,
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+                if (data.success) {
+                    document.getElementById("edit-doc-content").value = data.formatted_content;
+                    updateDocCharCount();
+                    alertBox.className = "alert alert-success small mb-0";
+                    alertBox.style.background = "rgba(16, 185, 129, 0.15)";
+                    alertBox.style.borderColor = "rgba(16, 185, 129, 0.35)";
+                    alertBox.style.color = "#a7f3d0";
+                    alertBox.innerHTML = `<i class="bi bi-stars me-1"></i> Đã chuẩn hóa cấu trúc thành công theo quy chuẩn cẩm nang VietHerb! Hãy kiểm tra và bấm "Lưu & Cập nhật RAG".`;
+                    alertBox.classList.remove("d-none");
+                } else {
+                    alert("Lỗi chuẩn hóa: " + (data.error || "Không thể xử lý."));
+                }
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+                alert("Lỗi kết nối máy chủ: " + err);
+            });
+        }
+
+        function autoFormatDirectDoc() {
+            const content = document.getElementById("direct-herb-content").value.trim();
+            const herbName = document.getElementById("direct-herb-name").value.trim();
+            const sciName = document.getElementById("direct-sci-name").value.trim();
+
+            if (!content && !herbName) {
+                alert("Vui lòng nhập tên cây hoặc nội dung cần chuẩn hóa trước!");
+                return;
+            }
+
+            const btn = document.getElementById("btn-format-direct");
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Đang chuẩn hóa...`;
+
+            fetch("/api/rag/text/format", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    content: content || herbName,
+                    herb_name: herbName,
+                    scientific_name: sciName,
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+                if (data.success) {
+                    if (data.herb_name) document.getElementById("direct-herb-name").value = data.herb_name;
+                    if (data.scientific_name) document.getElementById("direct-sci-name").value = data.scientific_name;
+                    document.getElementById("direct-herb-content").value = data.formatted_content;
+                } else {
+                    alert("Lỗi chuẩn hóa: " + (data.error || "Không thể xử lý."));
+                }
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+                alert("Lỗi kết nối máy chủ: " + err);
+            });
+        }
+
         // Xem Album ảnh của 1 loài cây
         function viewHerbGallery(herbName) {
             currentSelectedHerb = herbName;
@@ -1482,11 +1587,15 @@
                        </div>` 
                     : '';
 
+                // Đánh giá độ tin cậy RAG Triad & Rerank
+                const evalHtml = renderEvaluationBadge(data.evaluation, data.retrieved_docs);
+
                 box.innerHTML += `
                     <div class="chat-msg chat-bot markdown-body shadow-sm">
                         ${attachedImgHtml}
                         ${parsedContent}
                         ${sourcesHtml}
+                        ${evalHtml}
                     </div>`;
                 box.scrollTop = box.scrollHeight;
             })
@@ -1496,6 +1605,100 @@
                 box.innerHTML += `<div class="chat-msg chat-bot text-danger shadow-sm">Lỗi kết nối máy chủ: ${err}</div>`;
                 box.scrollTop = box.scrollHeight;
             });
+        }
+
+        // ==============================================================
+        // RENDER RAG TRIAD EVALUATION & RERANK SCORE BADGE
+        // ==============================================================
+        function toggleEvalDetails(id) {
+            const el = document.getElementById(id);
+            const arrow = document.getElementById("arrow-" + id);
+            if (!el) return;
+            if (el.classList.contains("d-none")) {
+                el.classList.remove("d-none");
+                if (arrow) arrow.className = "bi bi-chevron-up ms-1 text-secondary";
+            } else {
+                el.classList.add("d-none");
+                if (arrow) arrow.className = "bi bi-chevron-down ms-1 text-secondary";
+            }
+        }
+
+        function renderEvaluationBadge(evaluation, retrievedDocs) {
+            if (!evaluation) return "";
+
+            const score = evaluation.overall_score || 0;
+            const evalId = "eval-" + Math.random().toString(36).substring(2, 9);
+
+            let scoreColor = "#34d399";
+            let badgeBg = "rgba(16, 185, 129, 0.2)";
+            if (score < 60) {
+                scoreColor = "#f87171";
+                badgeBg = "rgba(239, 68, 68, 0.2)";
+            } else if (score < 80) {
+                scoreColor = "#fbbf24";
+                badgeBg = "rgba(245, 158, 11, 0.2)";
+            }
+
+            let rerankItemsHtml = "";
+            if (retrievedDocs && retrievedDocs.length > 0) {
+                rerankItemsHtml = `
+                    <div class="mt-2 pt-2 border-top border-secondary border-opacity-10">
+                        <div class="fw-semibold text-secondary mb-1" style="font-size: 0.73rem;">
+                            <i class="bi bi-sort-numeric-down text-herb me-1"></i>Cross-Encoder Rerank (Độ khớp ngữ nghĩa):
+                        </div>
+                        <div class="d-flex flex-wrap gap-1">
+                            ${retrievedDocs.map((doc, idx) => {
+                                const sc = doc.rerank_score ? (doc.rerank_score * 100).toFixed(1) + '%' : 'N/A';
+                                return `<span class="badge" style="background: rgba(255,255,255,0.06); border: 1px solid var(--border-subtle); color: var(--text-primary); font-size: 0.7rem;">
+                                    ${doc.source} <span style="color: #38bdf8;">(${sc})</span>
+                                </span>`;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="rag-eval-container mt-2 pt-2 border-top" style="border-color: var(--border-subtle) !important;">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div class="rag-eval-pill" onclick="toggleEvalDetails('${evalId}')" title="Nhấp để xem chi tiết đánh giá RAG Triad">
+                            <span>🛡️</span>
+                            <span class="fw-semibold">Độ tin cậy RAG:</span>
+                            <span class="badge" style="background: ${badgeBg}; color: ${scoreColor}; font-size: 0.74rem;">${score}% (${evaluation.verdict || 'Đạt chuẩn'})</span>
+                            <i class="bi bi-chevron-down ms-1 text-secondary" style="font-size: 0.7rem;" id="arrow-${evalId}"></i>
+                        </div>
+                    </div>
+                    <div id="${evalId}" class="rag-eval-details d-none mt-2 p-2 rounded" style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-subtle); font-size: 0.76rem;">
+                        <div class="row g-2 mb-2 text-center">
+                            <div class="col-4">
+                                <div class="text-secondary small">Ngữ cảnh (Context)</div>
+                                <div class="fw-bold fs-6" style="color: #38bdf8;">${evaluation.context_relevance || 0}%</div>
+                                <div class="progress mt-1" style="height: 4px; background: rgba(255,255,255,0.1);">
+                                    <div class="progress-bar" style="width: ${evaluation.context_relevance || 0}%; background-color: #38bdf8;"></div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="text-secondary small">Bám sát (Grounded)</div>
+                                <div class="fw-bold fs-6" style="color: #34d399;">${evaluation.groundedness || 0}%</div>
+                                <div class="progress mt-1" style="height: 4px; background: rgba(255,255,255,0.1);">
+                                    <div class="progress-bar" style="width: ${evaluation.groundedness || 0}%; background-color: #34d399;"></div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="text-secondary small">Trọng tâm (Relevance)</div>
+                                <div class="fw-bold fs-6" style="color: #a78bfa;">${evaluation.answer_relevance || 0}%</div>
+                                <div class="progress mt-1" style="height: 4px; background: rgba(255,255,255,0.1);">
+                                    <div class="progress-bar" style="width: ${evaluation.answer_relevance || 0}%; background-color: #a78bfa;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-secondary mt-1">
+                            <i class="bi bi-chat-left-quote text-herb me-1"></i>${evaluation.feedback || ''}
+                        </div>
+                        ${rerankItemsHtml}
+                    </div>
+                </div>
+            `;
         }
     </script>
 </body>

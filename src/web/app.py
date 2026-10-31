@@ -13,6 +13,7 @@ from src.modules.rag.ingestion import DocumentIngestion
 from src.modules.rag.vectorstore import VectorStoreManager
 from src.modules.rag.hybrid_retriever import HybridRetrieverManager
 from src.modules.rag.generator import RAGGenerator
+from src.modules.rag.document_formatter import DocumentFormattingAgent
 from src.modules.vision.image_store import ImageVectorStore
 from src.modules.vision.visual_rag_pipeline import VisualRAGPipeline
 
@@ -33,8 +34,8 @@ hybrid_retriever = HybridRetrieverManager(
     documents=chunks,
 )
 image_store = ImageVectorStore(collection_name="herb_images_collection")
-text_generator = RAGGenerator(hybrid_retriever=hybrid_retriever)
-image_store = ImageVectorStore(collection_name="herb_images_collection")
+text_generator = RAGGenerator(hybrid_retriever=hybrid_retriever, image_store=image_store)
+formatter_agent = DocumentFormattingAgent()
 visual_rag = VisualRAGPipeline(
     image_store=image_store,
     text_retriever=hybrid_retriever,
@@ -316,6 +317,8 @@ def query_text_rag():
     res = text_generator.answer_question(question)
     answer_text = res.get("answer", "")
     sources = res.get("sources", [])
+    evaluation = res.get("evaluation")
+    retrieved_docs = res.get("retrieved_docs", [])
 
     # CHỈ ĐÍNH KÈM ẢNH KHI:
     # Người dùng hỏi đích danh loài cây có trong image_store (kiểm tra regex ranh giới từ để tránh khớp nhầm)
@@ -340,7 +343,9 @@ def query_text_rag():
     return jsonify({
         "answer": answer_text,
         "sources": sources,
-        "attached_image": attached_herb_image  # Chỉ có ảnh nếu hỏi đích danh cây trong kho
+        "attached_image": attached_herb_image,  # Chỉ có ảnh nếu hỏi đích danh cây trong kho
+        "evaluation": evaluation,
+        "retrieved_docs": retrieved_docs,
     })
 
 @app.route("/api/rag/vision", methods=["POST"])
@@ -518,6 +523,25 @@ def update_text_document():
         "file_name": safe_name,
         "total_chunks": total_chunks,
     })
+
+@app.route("/api/rag/text/format", methods=["POST"])
+def format_text_document():
+    """Tự động phân tích cú pháp và chuẩn hóa cấu trúc tài liệu thảo dược bằng AI."""
+    data = request.get_json() or {}
+    raw_content = data.get("content", "").strip()
+    herb_name = data.get("herb_name", "").strip()
+    scientific_name = data.get("scientific_name", "").strip()
+
+    if not raw_content:
+        return jsonify({"success": False, "error": "Vui lòng nhập nội dung văn bản cần chuẩn hóa!"}), 400
+
+    result = formatter_agent.format_document(
+        raw_text=raw_content,
+        herb_name=herb_name,
+        scientific_name=scientific_name,
+    )
+    return jsonify(result)
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000, debug=True)

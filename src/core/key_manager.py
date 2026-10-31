@@ -82,6 +82,9 @@ class APIKeyManager:
 
     def get_key_for_embedding(self, model_name: Optional[str] = None) -> str:
         """Lấy key khả dụng cho tác vụ embedding theo thứ tự xoay vòng."""
+        if not self._key_registry:
+            self.discover_keys_capabilities()
+
         settings = get_settings()
         target_model = model_name or settings.DEFAULT_EMBEDDING_MODEL
 
@@ -102,6 +105,9 @@ class APIKeyManager:
 
     def get_key_for_chat(self, model_name: Optional[str] = None) -> str:
         """Lấy key khả dụng cho tác vụ Chat LLM theo thứ tự xoay vòng."""
+        if not self._key_registry:
+            self.discover_keys_capabilities()
+
         settings = get_settings()
         target_model = model_name or settings.DEFAULT_LLM_MODEL
 

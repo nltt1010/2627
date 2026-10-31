@@ -10,6 +10,7 @@ from langchain_core.documents import Document
 from src.core.config import get_settings
 from src.core.key_manager import key_manager
 from src.modules.rag.hybrid_retriever import HybridRetrieverManager
+from src.modules.rag.evaluator import RAGTriadEvaluator
 
 logger = logging.getLogger(__name__)
 
@@ -32,24 +33,26 @@ SYSTEM_PROMPT = """Bạn là trợ lý AI chuyên gia về dược liệu và n�
 
 
 class RAGGenerator:
-    """Xử lý kết hợp ngữ cảnh từ Hybrid Retriever và sinh câu trả lời bằng Gemini LLM."""
+    """Xử lý kết hợp ngữ cảnh từ Advanced Hybrid Retriever và sinh câu trả lời bằng Gemini LLM kèm RAG Triad Evaluator."""
 
-    def __init__(self, hybrid_retriever: HybridRetrieverManager, image_store: Optional[Any] = None):
+    def __init__(
+        self,
+        hybrid_retriever: HybridRetrieverManager,
+        image_store: Optional[Any] = None,
+        evaluator: Optional[RAGTriadEvaluator] = None,
+    ):
         self.settings = get_settings()
         self.retriever = hybrid_retriever
         self.image_store = image_store
+        self.evaluator = evaluator or RAGTriadEvaluator()
 
-        # Sử dụng đúng cấu hình DEFAULT_LLM_MODEL của dự án
         model_name = getattr(self.settings, "DEFAULT_LLM_MODEL", "gemini-2.5-flash")
-
-        # Lấy key hợp lệ đã được kiểm duyệt cho Chat LLM
         selected_key = key_manager.get_key_for_chat(model_name)
 
-        # Khởi tạo mô hình Gemini LLM
         self.llm = ChatGoogleGenerativeAI(
             model=model_name,
             google_api_key=selected_key,
-            temperature=0.2,  # Nhiệt độ thấp để giảm tối đa ảo giác
+            temperature=0.2,
         )
 
         self.prompt_template = ChatPromptTemplate.from_messages([
@@ -69,7 +72,6 @@ class RAGGenerator:
                 herb_name = f.stem.replace("_", " ").title()
                 herbs_in_system.append(herb_name)
 
-        # Lấy thêm các loài cây có trong kho ảnh ChromaDB nếu có image_store
         image_herbs = self.image_store.get_available_herbs() if self.image_store else []
         all_unique_herbs = sorted(list(set(herbs_in_system + image_herbs)))
 
@@ -79,21 +81,34 @@ class RAGGenerator:
         }
 
     def _format_context(self, docs: List[Document]) -> str:
-        """Định dạng các đoạn văn bản trích xuất kèm nguồn tham khảo."""
+        """Định dạng các đoạn văn bản trích xuất kèm nguồn tham khảo và điểm rerank."""
         formatted_chunks = []
         for idx, doc in enumerate(docs, 1):
             source = doc.metadata.get("source", "Không rõ")
-            formatted_chunks.append(f"[Đoạn {idx} - Nguồn: {source}]\n{doc.page_content.strip()}")
+            score_info = ""
+            if "rerank_score" in doc.metadata:
+                score_info = f" | Độ tương quan: {doc.metadata['rerank_score']*100:.1f}%"
+            formatted_chunks.append(f"[Đoạn {idx} - Nguồn: {source}{score_info}]\n{doc.page_content.strip()}")
         return "\n\n".join(formatted_chunks)
 
-    def answer_question(self, question: str, top_k: int = 3) -> Dict[str, Any]:
-        """Quy trình RAG hoàn chỉnh: Lấy thống kê kho -> Truy xuất ngữ cảnh -> Đưa vào Prompt -> Sinh câu trả lời."""
+    def answer_question(
+        self,
+        question: str,
+        top_k: int = 3,
+        evaluate_rag: bool = True,
+    ) -> Dict[str, Any]:
+        """Quy trình Advanced RAG hoàn chỉnh:
+        1. Lấy thống kê kho
+        2. Truy xuất tài liệu bằng Advanced Retriever (HyDE + Multi-Query + CrossEncoder Reranker)
+        3. Định dạng ngữ cảnh & sinh câu trả lời bằng Gemini
+        4. Tự động đánh giá chất lượng bằng RAG Triad Evaluator (Context Relevance, Groundedness, Answer Relevance)
+        """
         # 1. Lấy dữ liệu thống kê trực tiếp từ kho
         db_summary = self._get_live_database_summary()
         herb_list_str = ", ".join(db_summary["herb_list"]) if db_summary["herb_list"] else "Chưa có loài nào"
 
-        # 2. Truy xuất tài liệu liên quan bằng Hybrid Search
-        relevant_docs = self.retriever.get_relevant_documents(query=question, top_k=top_k)
+        # 2. Truy xuất tài liệu liên quan bằng Advanced Hybrid Search
+        relevant_docs = self.retriever.get_relevant_documents(query=question, top_k=top_k, use_advanced=True)
 
         # 3. Định dạng ngữ cảnh
         if relevant_docs:
@@ -114,8 +129,31 @@ class RAGGenerator:
             "question": question,
         })
 
+        # 6. Đánh giá chất lượng bằng RAG Triad
+        evaluation = None
+        if evaluate_rag and relevant_docs:
+            try:
+                evaluation = self.evaluator.evaluate(
+                    question=question,
+                    context=context_str,
+                    answer=answer,
+                )
+            except Exception as e:
+                logger.warning(f"Lỗi khi đánh giá RAG Triad: {e}")
+
+        # Chuẩn bị danh sách chi tiết các tài liệu đã trích xuất
+        retrieved_details = []
+        for d in relevant_docs:
+            retrieved_details.append({
+                "source": d.metadata.get("source", "Tài liệu"),
+                "rerank_score": d.metadata.get("rerank_score"),
+                "snippet": d.page_content[:150] + "..." if len(d.page_content) > 150 else d.page_content,
+            })
+
         return {
             "answer": answer,
             "sources": sources,
             "db_stats": db_summary,
+            "evaluation": evaluation,
+            "retrieved_docs": retrieved_details,
         }
