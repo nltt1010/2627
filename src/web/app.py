@@ -43,6 +43,83 @@ visual_rag = VisualRAGPipeline(
 print("✓ Khởi tạo hệ thống hoàn tất!")
 
 
+import re
+from typing import Optional
+
+def slugify_vietnamese(text: str) -> str:
+    """Chuyển đổi chuỗi tiếng Việt thành tên file an toàn (vd: 'Đinh Lăng' -> 'dinh_lang')."""
+    text = text.lower().strip()
+    patterns = {
+        '[àáạảãâầấậẩẫăằắặẳẵ]': 'a',
+        '[èéẹẻẽêềếệểễ]': 'e',
+        '[ìíịỉĩ]': 'i',
+        '[òóọỏõôồốộổỗơờớợởỡ]': 'o',
+        '[ùúụủũưừứựửữ]': 'u',
+        '[ỳýỵỷỹ]': 'y',
+        '[đ]': 'd',
+    }
+    for regex, replace in patterns.items():
+        text = re.sub(regex, replace, text)
+    text = re.sub(r'[^a-z0-9\s_]', '', text)
+    text = re.sub(r'\s+', '_', text)
+    return text or "thao_duoc"
+
+def find_herb_doc_file(herb_name: str, file_name: str = "") -> tuple[Optional[Path], str]:
+    """Tìm file .txt tương ứng với loài cây trong data/raw/."""
+    raw_dir = Path("data/raw")
+    if file_name:
+        candidate = raw_dir / Path(file_name).name
+        if candidate.exists() and candidate.is_file():
+            return candidate, candidate.name
+
+    if herb_name:
+        text_herbs = image_store.get_text_herbs()
+        norm_name = herb_name.strip().lower()
+        for item in text_herbs:
+            if item["herb_name"].strip().lower() == norm_name:
+                cand = raw_dir / item["file_name"]
+                if cand.exists():
+                    return cand, cand.name
+
+        slug_cand = raw_dir / f"{slugify_vietnamese(herb_name)}.txt"
+        if slug_cand.exists():
+            return slug_cand, slug_cand.name
+
+        # Quét dòng đầu các file
+        for cand in raw_dir.glob("*.txt"):
+            try:
+                with open(cand, "r", encoding="utf-8") as rf:
+                    first_line = rf.readline()
+                    if norm_name in first_line.lower():
+                        return cand, cand.name
+            except Exception:
+                pass
+
+    expected_name = Path(file_name).name if file_name else f"{slugify_vietnamese(herb_name)}.txt"
+    return None, expected_name
+
+def reindex_rag_document(file_name: str) -> int:
+    """Băm lại chunks và re-index VectorStore + BM25 tức thì cho file tài liệu."""
+    global chunks, vs_manager, hybrid_retriever, text_generator, visual_rag
+    vs_manager.delete_by_source(file_name)
+    raw_docs = ingestion.load_text_files()
+    chunks = ingestion.split_documents(raw_docs)
+
+    new_file_chunks = [c for c in chunks if c.metadata.get("source") == file_name]
+    if new_file_chunks:
+        vs_manager.add_documents(new_file_chunks)
+
+    hybrid_retriever = HybridRetrieverManager(
+        vectorstore_manager=vs_manager,
+        documents=chunks,
+    )
+    text_generator = RAGGenerator(
+        hybrid_retriever=hybrid_retriever,
+        image_store=image_store
+    )
+    visual_rag.text_retriever = hybrid_retriever
+    return len(chunks)
+
 # --- ROUTE GIAO DIỆN CHÍNH ---
 @app.route("/")
 def index():
@@ -56,15 +133,26 @@ def get_herbs_summary():
     available_herbs_names = image_store.get_available_herbs()
     available_herbs = []
 
+    text_herbs = image_store.get_text_herbs()
+    text_herbs_map = {item["herb_name"].strip().lower(): item for item in text_herbs}
+
     for name in available_herbs_names:
         gallery = image_store.get_herb_gallery(name)
         first_img = gallery[0]["file_path"] if gallery else ""
         sci_name = gallery[0]["scientific_name"] if gallery else ""
+
+        # Gắn kèm thông tin tài liệu văn bản (.txt)
+        matched_text = text_herbs_map.get(name.strip().lower())
+        file_name = matched_text["file_name"] if matched_text else f"{slugify_vietnamese(name)}.txt"
+        has_doc = (Path("data/raw") / file_name).exists() if file_name else False
+
         available_herbs.append({
             "name": name,
-            "scientific_name": sci_name,
+            "scientific_name": sci_name or (matched_text.get("scientific_name") if matched_text else ""),
             "image_count": len(gallery),
             "thumbnail": f"/api/image/view?path={first_img}" if first_img else "",
+            "file_name": file_name,
+            "has_doc": has_doc,
         })
 
     missing_herbs = image_store.get_herbs_missing_images()
@@ -278,61 +366,31 @@ def upload_text_document():
     raw_dir = Path("data/raw")
     raw_dir.mkdir(parents=True, exist_ok=True)
 
-    saved_count = 0
+    saved_files = []
     for f in uploaded_files:
         if f and f.filename.endswith(".txt"):
-            save_path = raw_dir / secure_filename(f.filename)
+            save_name = secure_filename(f.filename)
+            save_path = raw_dir / save_name
             f.save(save_path)
-            saved_count += 1
+            saved_files.append(save_name)
 
-    if saved_count == 0:
+    if not saved_files:
         return jsonify({"error": "Chỉ chấp nhận các file định dạng .txt!"}), 400
 
     # Tự động Re-index kho tài liệu vào VectorStore và HybridRetriever
-    global chunks, vs_manager, hybrid_retriever, text_generator, visual_rag
     try:
-        raw_docs = ingestion.load_text_files()
-        chunks = ingestion.split_documents(raw_docs)
-        vs_manager.add_documents(chunks)
-        hybrid_retriever = HybridRetrieverManager(
-            vectorstore_manager=vs_manager,
-            documents=chunks,
-        )
-        text_generator = RAGGenerator(
-            hybrid_retriever=hybrid_retriever,
-            image_store=image_store
-        )
-        visual_rag.text_retriever = hybrid_retriever
+        total_chunks = 0
+        for s_file in saved_files:
+            total_chunks = reindex_rag_document(s_file)
     except Exception as e:
         return jsonify({"error": f"Lỗi re-index tài liệu: {str(e)}"}), 500
 
     return jsonify({
         "success": True,
-        "message": f"Đã lưu thành công {saved_count} tệp tài liệu và cập nhật cẩm nang tra cứu!",
-        "saved_count": saved_count,
+        "message": f"Đã lưu thành công {len(saved_files)} tệp tài liệu và cập nhật cẩm nang tra cứu ({total_chunks} chunks)!",
+        "saved_count": len(saved_files),
     })
 
-import re
-
-def slugify_vietnamese(text: str) -> str:
-    """Chuyển đổi chuỗi tiếng Việt thành tên file an toàn (vd: 'Đinh Lăng' -> 'dinh_lang')."""
-    text = text.lower().strip()
-    # Chuyển các ký tự có dấu phổ biến
-    patterns = {
-        '[àáạảãâầấậẩẫăằắặẳẵ]': 'a',
-        '[èéẹẻẽêềếệểễ]': 'e',
-        '[ìíịỉĩ]': 'i',
-        '[òóọỏõôồốộổỗơờớợởỡ]': 'o',
-        '[ùúụủũưừứựửữ]': 'u',
-        '[ỳýỵỷỹ]': 'y',
-        '[đ]': 'd',
-    }
-    for regex, replace in patterns.items():
-        text = re.sub(regex, replace, text)
-    # Loại bỏ ký tự đặc biệt, chỉ giữ lại chữ, số và khoảng trắng
-    text = re.sub(r'[^a-z0-9\s_]', '', text)
-    text = re.sub(r'\s+', '_', text)
-    return text or "thao_duoc"
 
 @app.route("/api/rag/text/create", methods=["POST"])
 def create_text_document():
@@ -348,13 +406,10 @@ def create_text_document():
     raw_dir = Path("data/raw")
     raw_dir.mkdir(parents=True, exist_ok=True)
 
-    # Đặt tên file tự động dựa theo tên cây (vd: dinh_lang.txt)
     base_slug = slugify_vietnamese(herb_name)
     file_name = f"{base_slug}.txt"
     file_path = raw_dir / file_name
 
-    # Chuẩn hóa định dạng chuẩn để hàm quét dữ liệu tự bóc tách được danh pháp
-    # Dòng 1: Tên (danh pháp khoa học: ...)
     full_text = f"{herb_name}"
     if scientific_name:
         full_text += f" (danh pháp khoa học: {scientific_name})"
@@ -366,28 +421,102 @@ def create_text_document():
     except Exception as e:
         return jsonify({"error": f"Lỗi ghi file: {str(e)}"}), 500
 
-    # Tự động Re-index kho tài liệu vào VectorStore và HybridRetriever
-    global chunks, vs_manager, hybrid_retriever, text_generator, visual_rag
     try:
-        raw_docs = ingestion.load_text_files()
-        chunks = ingestion.split_documents(raw_docs)
-        vs_manager.add_documents(chunks)
-        hybrid_retriever = HybridRetrieverManager(
-            vectorstore_manager=vs_manager,
-            documents=chunks,
-        )
-        text_generator = RAGGenerator(
-            hybrid_retriever=hybrid_retriever,
-            image_store=image_store
-        )
-        visual_rag.text_retriever = hybrid_retriever
+        total_chunks = reindex_rag_document(file_name)
     except Exception as e:
         return jsonify({"error": f"Lỗi re-index tài liệu: {str(e)}"}), 500
 
     return jsonify({
         "success": True,
-        "message": f"Đã lưu thông tin cây và cập nhật cẩm nang tra cứu thành công!",
+        "message": f"Đã lưu thông tin cây và cập nhật cẩm nang tra cứu thành công ({total_chunks} chunks)!",
         "file_name": file_name,
+    })
+
+
+@app.route("/api/rag/text/detail", methods=["GET"])
+def get_text_document_detail():
+    """Lấy nội dung chi tiết của file tài liệu văn bản (.txt) theo tên cây hoặc tên file."""
+    herb_name = request.args.get("herb_name", "").strip()
+    file_name = request.args.get("file_name", "").strip()
+
+    target_file, resolved_filename = find_herb_doc_file(herb_name=herb_name, file_name=file_name)
+
+    if target_file and target_file.exists():
+        try:
+            with open(target_file, "r", encoding="utf-8") as f:
+                content = f.read()
+            return jsonify({
+                "success": True,
+                "herb_name": herb_name or target_file.stem.replace("_", " ").title(),
+                "file_name": target_file.name,
+                "file_path": f"data/raw/{target_file.name}",
+                "content": content,
+                "exists": True,
+            })
+        except Exception as e:
+            return jsonify({"error": f"Lỗi đọc file {target_file.name}: {str(e)}"}), 500
+
+    default_content = (
+        f"{herb_name}\n\n"
+        f"Tên gọi khác: \n\n"
+        f"Đặc điểm thực vật:\n- \n\n"
+        f"Dược tính và thành phần hóa học:\n- \n\n"
+        f"Công dụng chính:\n- \n\n"
+        f"Liều dùng thông thường:\n- "
+    ) if herb_name else ""
+
+    return jsonify({
+        "success": True,
+        "herb_name": herb_name,
+        "file_name": resolved_filename,
+        "file_path": f"data/raw/{resolved_filename}",
+        "content": default_content,
+        "exists": False,
+    })
+
+
+@app.route("/api/rag/text/update", methods=["POST"])
+def update_text_document():
+    """Lưu chỉnh sửa nội dung file .txt và tự động băm lại chunk, re-index RAG tức thì."""
+    data = request.get_json() or {}
+    file_name = data.get("file_name", "").strip()
+    herb_name = data.get("herb_name", "").strip()
+    content = data.get("content", "").strip()
+
+    if not content:
+        return jsonify({"error": "Nội dung tài liệu không được để trống!"}), 400
+
+    raw_dir = Path("data/raw")
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    if not file_name:
+        if herb_name:
+            file_name = f"{slugify_vietnamese(herb_name)}.txt"
+        else:
+            return jsonify({"error": "Thiếu thông tin tên file hoặc tên cây!"}), 400
+
+    safe_name = Path(file_name).name
+    if not safe_name.endswith(".txt"):
+        safe_name += ".txt"
+
+    file_path = raw_dir / safe_name
+
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(content)
+    except Exception as e:
+        return jsonify({"error": f"Lỗi ghi file {safe_name}: {str(e)}"}), 500
+
+    try:
+        total_chunks = reindex_rag_document(safe_name)
+    except Exception as e:
+        return jsonify({"error": f"Đã lưu file nhưng gặp lỗi khi re-index RAG: {str(e)}"}), 500
+
+    return jsonify({
+        "success": True,
+        "message": f"Đã lưu '{safe_name}' và cập nhật kho tri thức RAG tức thì ({total_chunks} chunks)!",
+        "file_name": safe_name,
+        "total_chunks": total_chunks,
     })
 
 if __name__ == "__main__":

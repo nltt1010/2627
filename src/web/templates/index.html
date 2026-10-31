@@ -109,15 +109,9 @@
                 <div class="sidebar-section-title">Đóng góp cẩm nang</div>
                 <ul class="sidebar-nav-list">
                     <li class="sidebar-nav-item">
-                        <a class="sidebar-nav-link" onclick="openTextDocModalDirect()">
-                            <i class="bi bi-pencil-square"></i>
-                            <span>Soạn thảo cây mới</span>
-                        </a>
-                    </li>
-                    <li class="sidebar-nav-item">
-                        <a class="sidebar-nav-link" onclick="openTextDocModalUpload()">
-                            <i class="bi bi-file-earmark-arrow-up"></i>
-                            <span>Tải tệp tư liệu (.txt)</span>
+                        <a class="sidebar-nav-link" onclick="openTextDocModal()">
+                            <i class="bi bi-file-earmark-plus"></i>
+                            <span>Bổ sung tài liệu (.txt)</span>
                         </a>
                     </li>
                     <li class="sidebar-nav-item">
@@ -223,6 +217,10 @@
                         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                             <span id="detail-title" class="fw-bold text-herb fs-6">Album ảnh</span>
                             <div class="d-flex align-items-center gap-2">
+                                <button class="btn-herb-outline btn-sm" id="btn-edit-herb-doc" onclick="openEditDocModal(currentSelectedHerb)" title="Xem và chỉnh sửa tài liệu .txt của cây này">
+                                    <i class="bi bi-file-earmark-text me-1"></i>
+                                    <span>Xem/Sửa tài liệu</span>
+                                </button>
                                 <button class="btn-herb btn-sm" id="btn-add-more-img">
                                     <i class="bi bi-plus-lg"></i>
                                     <span>Góp thêm ảnh cho cây này</span>
@@ -473,6 +471,63 @@
     </div>
 
     <!-- ============================================================== -->
+    <!-- MODAL XEM VÀ CHỈNH SỬA TÀI LIỆU CÂY THUỐC (.TXT & RE-INDEX)     -->
+    <!-- ============================================================== -->
+    <div class="modal fade" id="editDocModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-file-earmark-text text-herb fs-5"></i>
+                        <div>
+                            <h5 class="modal-title mb-0" id="edit-doc-title">Tài liệu thảo dược</h5>
+                            <div class="text-secondary small mt-0" style="font-size: 0.78rem;">
+                                Tệp nguồn: <code id="edit-doc-filepath" class="text-herb">data/raw/...</code>
+                                <span id="edit-doc-status-badge" class="badge ms-2" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">Đã kết nối</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-dark" data-bs-dismiss="modal" id="edit-doc-close-btn"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-dark p-2 mb-3 small d-flex align-items-center gap-2" style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-subtle); color: var(--text-secondary);">
+                        <i class="bi bi-info-circle text-herb fs-6 flex-shrink-0"></i>
+                        <span>Nội dung lưu tại đây được hệ thống AI trích xuất để tư vấn cho người dùng. Dòng 1 nên có định dạng: <code>Tên Cây (danh pháp khoa học: ...)</code></span>
+                    </div>
+
+                    <input type="hidden" id="edit-doc-herb-name-hidden">
+                    <input type="hidden" id="edit-doc-filename-hidden">
+
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label mb-0 fw-semibold">Nội dung văn bản chi tiết (.txt):</label>
+                            <span class="text-secondary small" id="edit-doc-char-count">0 ký tự | 0 dòng</span>
+                        </div>
+                        <textarea class="form-control font-monospace" id="edit-doc-content" rows="13" 
+                                  placeholder="Đang nạp dữ liệu tài liệu..."
+                                  style="font-family: 'Consolas', 'Courier New', monospace; font-size: 0.88rem; line-height: 1.5; resize: vertical; min-height: 280px; max-height: 520px;"
+                                  oninput="updateDocCharCount()"></textarea>
+                    </div>
+
+                    <div id="edit-doc-alert" class="alert d-none small mb-0" role="alert"></div>
+                </div>
+                <div class="modal-footer d-flex justify-content-between align-items-center">
+                    <div class="text-secondary small d-none d-sm-block">
+                        <i class="bi bi-cpu text-herb me-1"></i>Tự động băm chunk & re-index RAG tức thì
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn-dark-subtle" data-bs-dismiss="modal" id="edit-doc-cancel-btn">Đóng</button>
+                        <button type="button" class="btn-herb" id="edit-doc-save-btn" onclick="saveAndReindexDocument()">
+                            <i class="bi bi-cloud-arrow-up-fill me-1"></i>
+                            <span id="edit-doc-save-text">Lưu & Cập nhật RAG</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================== -->
     <!-- MODAL BỔ SUNG / THÊM NHIỀU ẢNH MẪU                             -->
     <!-- ============================================================== -->
     <div class="modal fade" id="uploadModal" tabindex="-1" data-bs-backdrop="static">
@@ -574,6 +629,7 @@
         let uploadModalInstance = new bootstrap.Modal(document.getElementById('uploadModal'));
         let lightboxModalInstance = new bootstrap.Modal(document.getElementById('lightboxModal'));
         let textDocModalInstance = new bootstrap.Modal(document.getElementById('textDocModal'));
+        let editDocModalInstance = new bootstrap.Modal(document.getElementById('editDocModal'));
 
         let currentSelectedHerb = "";
         let rawAvailableHerbs = [];
@@ -675,11 +731,19 @@
                         data.missing_herbs.forEach(item => {
                             const tag = document.createElement("div");
                             tag.className = "missing-herb-tag";
+                            const safeName = (item.herb_name || "").replace(/'/g, "\\'");
+                            const safeSci = (item.scientific_name || "").replace(/'/g, "\\'");
+                            const safeFile = (item.file_name || "").replace(/'/g, "\\'");
                             tag.innerHTML = `
                                 <span class="missing-herb-tag-name">🌿 ${item.herb_name}</span>
-                                <button type="button" class="missing-herb-tag-btn" onclick="openUploadModal('${item.herb_name}', '${item.scientific_name || ''}')" title="Thêm ảnh mẫu cho cây này">
-                                    + Góp ảnh
-                                </button>
+                                <div class="d-flex align-items-center gap-1">
+                                    <button type="button" class="missing-herb-tag-btn" onclick="openUploadModal('${safeName}', '${safeSci}')" title="Thêm ảnh mẫu cho cây này">
+                                        + Góp ảnh
+                                    </button>
+                                    <button type="button" class="missing-herb-tag-btn" style="border-color: rgba(56, 189, 248, 0.4); color: #7dd3fc;" onclick="openEditDocModal('${safeName}', '${safeFile}')" title="Xem và chỉnh sửa tài liệu của cây này">
+                                        <i class="bi bi-file-earmark-text"></i> Xem/Sửa TL
+                                    </button>
+                                </div>
                             `;
                             missingList.appendChild(tag);
                         });
@@ -706,6 +770,9 @@
                     const card = document.createElement("div");
                     card.className = "card-herb";
                     card.onclick = () => viewHerbGallery(herb.name);
+                    const safeName = (herb.name || "").replace(/'/g, "\\'");
+                    const safeFile = (herb.file_name || "").replace(/'/g, "\\'");
+
                     card.innerHTML = `
                         <div class="card-herb-img-wrapper">
                             <img src="${herb.thumbnail || 'https://placehold.co/220x140/0f171f/64748b?text=Chua+co+anh'}" alt="${herb.name}">
@@ -713,10 +780,16 @@
                         <div class="card-herb-content">
                             <div class="card-herb-title" title="${herb.name}">${herb.name}</div>
                             <div class="card-herb-sci" title="${herb.scientific_name || 'Đang cập nhật danh pháp'}">${herb.scientific_name || 'Đang cập nhật'}</div>
-                            <span class="card-herb-badge">
-                                <i class="bi bi-image text-herb"></i>
-                                <span>${herb.image_count} ảnh mẫu</span>
-                            </span>
+                            <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top border-secondary border-opacity-10">
+                                <span class="card-herb-badge">
+                                    <i class="bi bi-image text-herb"></i>
+                                    <span>${herb.image_count}</span>
+                                </span>
+                                <button type="button" class="btn-card-edit-doc" onclick="event.stopPropagation(); openEditDocModal('${safeName}', '${safeFile}')" title="Xem & Chỉnh sửa tài liệu cây này">
+                                    <i class="bi bi-file-earmark-text text-herb"></i>
+                                    <span>Xem/Sửa TL</span>
+                                </button>
+                            </div>
                         </div>
                     `;
                     scrollContainer.appendChild(card);
@@ -828,6 +901,173 @@
             .catch(err => {
                 statusBox.classList.add("d-none");
                 alert("Lỗi kết nối máy chủ: " + err);
+            });
+        }
+
+        // ==============================================================
+        // XEM & CHỈNH SỬA TÀI LIỆU CÂY THUỐC (.TXT) VÀ RE-INDEX RAG
+        // ==============================================================
+        function openEditDocModal(herbName, fileName = "") {
+            if (!herbName && !fileName) return;
+
+            const modalTitle = document.getElementById("edit-doc-title");
+            const filepathEl = document.getElementById("edit-doc-filepath");
+            const badgeEl = document.getElementById("edit-doc-status-badge");
+            const contentEl = document.getElementById("edit-doc-content");
+            const alertBox = document.getElementById("edit-doc-alert");
+            const saveBtn = document.getElementById("edit-doc-save-btn");
+            const saveText = document.getElementById("edit-doc-save-text");
+            const closeBtn = document.getElementById("edit-doc-close-btn");
+            const cancelBtn = document.getElementById("edit-doc-cancel-btn");
+
+            document.getElementById("edit-doc-herb-name-hidden").value = herbName || "";
+            document.getElementById("edit-doc-filename-hidden").value = fileName || "";
+
+            modalTitle.innerText = `Tài liệu: ${herbName || fileName}`;
+            filepathEl.innerText = fileName ? `data/raw/${fileName}` : "data/raw/...";
+            badgeEl.className = "badge ms-2 bg-secondary text-white";
+            badgeEl.innerText = "Đang tải dữ liệu...";
+
+            contentEl.value = "";
+            contentEl.placeholder = "Đang đọc nội dung tệp từ thư mục data/raw/...";
+            contentEl.disabled = true;
+
+            alertBox.classList.add("d-none");
+            saveBtn.disabled = true;
+            closeBtn.disabled = false;
+            cancelBtn.disabled = false;
+            saveText.innerText = "Lưu & Cập nhật RAG";
+
+            editDocModalInstance.show();
+
+            const params = new URLSearchParams();
+            if (herbName) params.append("herb_name", herbName);
+            if (fileName) params.append("file_name", fileName);
+
+            fetch(`/api/rag/text/detail?${params.toString()}`)
+                .then(res => res.json())
+                .then(data => {
+                    contentEl.disabled = false;
+                    saveBtn.disabled = false;
+
+                    if (data.success) {
+                        contentEl.value = data.content || "";
+                        document.getElementById("edit-doc-filename-hidden").value = data.file_name || "";
+                        filepathEl.innerText = data.file_path || `data/raw/${data.file_name}`;
+
+                        if (data.exists) {
+                            badgeEl.className = "badge ms-2";
+                            badgeEl.style.background = "rgba(16, 185, 129, 0.15)";
+                            badgeEl.style.color = "#34d399";
+                            badgeEl.innerText = "Đã có tài liệu";
+                        } else {
+                            badgeEl.className = "badge ms-2";
+                            badgeEl.style.background = "rgba(245, 158, 11, 0.15)";
+                            badgeEl.style.color = "#fbbf24";
+                            badgeEl.innerText = "Tài liệu mới (Chưa lưu)";
+                        }
+
+                        updateDocCharCount();
+                        setTimeout(() => contentEl.focus(), 250);
+                    } else {
+                        alertBox.className = "alert alert-danger small mb-0";
+                        alertBox.innerText = data.error || "Không thể tải tài liệu.";
+                        alertBox.classList.remove("d-none");
+                    }
+                })
+                .catch(err => {
+                    contentEl.disabled = false;
+                    alertBox.className = "alert alert-danger small mb-0";
+                    alertBox.innerText = "Lỗi kết nối máy chủ: " + err;
+                    alertBox.classList.remove("d-none");
+                });
+        }
+
+        function updateDocCharCount() {
+            const val = document.getElementById("edit-doc-content").value || "";
+            const charCount = val.length;
+            const lineCount = val ? val.split("\n").length : 0;
+            document.getElementById("edit-doc-char-count").innerText = `${charCount} ký tự | ${lineCount} dòng`;
+        }
+
+        function saveAndReindexDocument() {
+            const herbName = document.getElementById("edit-doc-herb-name-hidden").value.trim();
+            const fileName = document.getElementById("edit-doc-filename-hidden").value.trim();
+            const content = document.getElementById("edit-doc-content").value.trim();
+            const alertBox = document.getElementById("edit-doc-alert");
+            const saveBtn = document.getElementById("edit-doc-save-btn");
+            const saveText = document.getElementById("edit-doc-save-text");
+            const closeBtn = document.getElementById("edit-doc-close-btn");
+            const cancelBtn = document.getElementById("edit-doc-cancel-btn");
+
+            if (!content) {
+                alert("Vui lòng không để trống nội dung tài liệu!");
+                return;
+            }
+
+            // Trạng thái đang lưu & re-index RAG
+            saveBtn.disabled = true;
+            closeBtn.disabled = true;
+            cancelBtn.disabled = true;
+            saveText.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Đang băm chunk & Re-index RAG...`;
+
+            alertBox.className = "alert alert-info small mb-0";
+            alertBox.style.background = "rgba(56, 189, 248, 0.1)";
+            alertBox.style.borderColor = "rgba(56, 189, 248, 0.3)";
+            alertBox.style.color = "#bae6fd";
+            alertBox.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Đang băm lại chunk, tạo embedding vector và cập nhật RAG tức thì...`;
+            alertBox.classList.remove("d-none");
+
+            fetch("/api/rag/text/update", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    herb_name: herbName,
+                    file_name: fileName,
+                    content: content
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                saveBtn.disabled = false;
+                closeBtn.disabled = false;
+                cancelBtn.disabled = false;
+                saveText.innerText = "Lưu & Cập nhật RAG";
+
+                if (data.success) {
+                    alertBox.className = "alert alert-success small mb-0";
+                    alertBox.style.background = "rgba(16, 185, 129, 0.15)";
+                    alertBox.style.borderColor = "rgba(16, 185, 129, 0.35)";
+                    alertBox.style.color = "#a7f3d0";
+                    alertBox.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i> ${data.message}`;
+
+                    loadHerbsData(); // Cập nhật lại danh mục cây
+                    if (currentSelectedHerb && currentSelectedHerb === herbName) {
+                        viewHerbGallery(currentSelectedHerb);
+                    }
+
+                    setTimeout(() => {
+                        editDocModalInstance.hide();
+                    }, 1400);
+                } else {
+                    alertBox.className = "alert alert-danger small mb-0";
+                    alertBox.style.background = "rgba(239, 68, 68, 0.15)";
+                    alertBox.style.borderColor = "rgba(239, 68, 68, 0.35)";
+                    alertBox.style.color = "#fca5a5";
+                    alertBox.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-1"></i> Lỗi: ${data.error}`;
+                }
+            })
+            .catch(err => {
+                saveBtn.disabled = false;
+                closeBtn.disabled = false;
+                cancelBtn.disabled = false;
+                saveText.innerText = "Lưu & Cập nhật RAG";
+
+                alertBox.className = "alert alert-danger small mb-0";
+                alertBox.style.background = "rgba(239, 68, 68, 0.15)";
+                alertBox.style.borderColor = "rgba(239, 68, 68, 0.35)";
+                alertBox.style.color = "#fca5a5";
+                alertBox.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-1"></i> Lỗi kết nối: ${err}`;
             });
         }
 

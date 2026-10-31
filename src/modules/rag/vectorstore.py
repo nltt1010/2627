@@ -52,6 +52,17 @@ class VectorStoreManager:
         vectorstore.add_documents(documents=documents)
         logger.info("✓ Hoàn tất lưu trữ vector.")
 
+    def delete_by_source(self, source_name: str) -> None:
+        """Xóa toàn bộ các vectors liên quan đến một file nguồn để tránh trùng lặp khi cập nhật."""
+        if not source_name:
+            return
+        try:
+            vectorstore = self.get_vectorstore()
+            vectorstore._collection.delete(where={"source": source_name})
+            logger.info(f"✓ Đã xóa các vector cũ của nguồn: {source_name}")
+        except Exception as e:
+            logger.warning(f"Lưu ý khi xóa vector cũ của source {source_name}: {e}")
+
     def similarity_search(self, query: str, k: int = 3) -> List[Document]:
         """Truy vấn tìm kiếm các đoạn văn bản tương đồng ngữ nghĩa nhất."""
         vectorstore = self.get_vectorstore()

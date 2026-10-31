@@ -11,9 +11,7 @@ from src.modules.rag.generator import RAGGenerator
 
 
 def test_full_rag_pipeline():
-    print("--- KIỂM TRA TOÀN DIỆN RAG PIPELINE (HYBRID RETRIEVAL + GEMINI FLASH) ---")
 
-    # 1. Chuẩn bị dữ liệu và retriever
     ingestion = DocumentIngestion(chunk_size=300, chunk_overlap=30)
     raw_docs = ingestion.load_text_files()
     chunks = ingestion.split_documents(raw_docs)
@@ -26,7 +24,6 @@ def test_full_rag_pipeline():
         documents=chunks,
     )
 
-    # 2. Khởi tạo generator
     generator = RAGGenerator(hybrid_retriever=hybrid_retriever)
 
     # Câu hỏi 1: Có trong tài liệu
