@@ -1,0 +1,348 @@
+{
+  "nodes": {
+    "herb_ca_gai_leo": {
+      "id": "herb_ca_gai_leo",
+      "label": "Cà Gai Leo",
+      "type": "Herb",
+      "properties": {}
+    },
+    "compound_glycoalcaloid": {
+      "id": "compound_glycoalcaloid",
+      "label": "Glycoalcaloid",
+      "type": "Compound",
+      "properties": {}
+    },
+    "compound_solamargine": {
+      "id": "compound_solamargine",
+      "label": "Solamargine",
+      "type": "Compound",
+      "properties": {}
+    },
+    "compound_solasonine": {
+      "id": "compound_solasonine",
+      "label": "Solasonine",
+      "type": "Compound",
+      "properties": {}
+    },
+    "compound_flavonoid": {
+      "id": "compound_flavonoid",
+      "label": "Flavonoid",
+      "type": "Compound",
+      "properties": {}
+    },
+    "compound_saponin_steroid": {
+      "id": "compound_saponin_steroid",
+      "label": "Saponin Steroid",
+      "type": "Compound",
+      "properties": {}
+    },
+    "compound_acid_amin": {
+      "id": "compound_acid_amin",
+      "label": "Acid Amin",
+      "type": "Compound",
+      "properties": {}
+    },
+    "disease_giai_doc_gan": {
+      "id": "disease_giai_doc_gan",
+      "label": "Giải Độc Gan",
+      "type": "Disease",
+      "properties": {}
+    },
+    "disease_ha_men_gan": {
+      "id": "disease_ha_men_gan",
+      "label": "Hạ Men Gan",
+      "type": "Disease",
+      "properties": {}
+    },
+    "disease_xo_gan": {
+      "id": "disease_xo_gan",
+      "label": "Xơ Gan",
+      "type": "Disease",
+      "properties": {}
+    },
+    "disease_viem_gan_b_man_tinh": {
+      "id": "disease_viem_gan_b_man_tinh",
+      "label": "Viêm Gan B Mạn Tính",
+      "type": "Disease",
+      "properties": {}
+    },
+    "disease_giai_ruou": {
+      "id": "disease_giai_ruou",
+      "label": "Giải Rượu",
+      "type": "Disease",
+      "properties": {}
+    },
+    "disease_chong_say": {
+      "id": "disease_chong_say",
+      "label": "Chống Say",
+      "type": "Disease",
+      "properties": {}
+    },
+    "disease_tieu_viem": {
+      "id": "disease_tieu_viem",
+      "label": "Tiêu Viêm",
+      "type": "Disease",
+      "properties": {}
+    },
+    "disease_phong_thap": {
+      "id": "disease_phong_thap",
+      "label": "Phong Thấp",
+      "type": "Disease",
+      "properties": {}
+    },
+    "disease_dau_nhuc_xuong_khop": {
+      "id": "disease_dau_nhuc_xuong_khop",
+      "label": "Đau Nhức Xương Khớp",
+      "type": "Disease",
+      "properties": {}
+    },
+    "plantpart_than_la": {
+      "id": "plantpart_than_la",
+      "label": "Thân Lá",
+      "type": "PlantPart",
+      "properties": {}
+    },
+    "herb_kim_ngan_hoa": {
+      "id": "herb_kim_ngan_hoa",
+      "label": "Kim Ngân Hoa",
+      "type": "Herb",
+      "properties": {}
+    },
+    "plantpart_nu_hoa": {
+      "id": "plantpart_nu_hoa",
+      "label": "Nụ Hoa",
+      "type": "PlantPart",
+      "properties": {}
+    },
+    "disease_thanh_nhiet_giai_doc": {
+      "id": "disease_thanh_nhiet_giai_doc",
+      "label": "Thanh Nhiệt Giải Độc",
+      "type": "Disease",
+      "properties": {}
+    },
+    "disease_tan_phong_nhiet": {
+      "id": "disease_tan_phong_nhiet",
+      "label": "Tán Phong Nhiệt",
+      "type": "Disease",
+      "properties": {}
+    },
+    "disease_mun_nhot": {
+      "id": "disease_mun_nhot",
+      "label": "Mụn Nhọt",
+      "type": "Disease",
+      "properties": {}
+    },
+    "disease_viem_hong": {
+      "id": "disease_viem_hong",
+      "label": "Viêm Họng",
+      "type": "Disease",
+      "properties": {}
+    },
+    "disease_cam_sot": {
+      "id": "disease_cam_sot",
+      "label": "Cảm Sốt",
+      "type": "Disease",
+      "properties": {}
+    },
+    "herb_sam_ngoc_linh": {
+      "id": "herb_sam_ngoc_linh",
+      "label": "Sâm Ngọc Linh",
+      "type": "Herb",
+      "properties": {}
+    },
+    "plantpart_than_re": {
+      "id": "plantpart_than_re",
+      "label": "Thân Rễ",
+      "type": "PlantPart",
+      "properties": {}
+    },
+    "plantpart_re_cu": {
+      "id": "plantpart_re_cu",
+      "label": "Rễ Củ",
+      "type": "PlantPart",
+      "properties": {}
+    },
+    "compound_saponin": {
+      "id": "compound_saponin",
+      "label": "Saponin",
+      "type": "Compound",
+      "properties": {}
+    },
+    "disease_stress": {
+      "id": "disease_stress",
+      "label": "Stress",
+      "type": "Disease",
+      "properties": {}
+    },
+    "disease_huyet_ap_khong_on_dinh": {
+      "id": "disease_huyet_ap_khong_on_dinh",
+      "label": "Huyết Áp Không Ổn Định",
+      "type": "Disease",
+      "properties": {}
+    }
+  },
+  "edges": [
+    {
+      "source": "herb_ca_gai_leo",
+      "target": "compound_glycoalcaloid",
+      "relation": "CONTAINS_COMPOUND",
+      "doc_source": "ca_gai_leo.txt"
+    },
+    {
+      "source": "herb_ca_gai_leo",
+      "target": "compound_solamargine",
+      "relation": "CONTAINS_COMPOUND",
+      "doc_source": "ca_gai_leo.txt"
+    },
+    {
+      "source": "herb_ca_gai_leo",
+      "target": "compound_solasonine",
+      "relation": "CONTAINS_COMPOUND",
+      "doc_source": "ca_gai_leo.txt"
+    },
+    {
+      "source": "herb_ca_gai_leo",
+      "target": "compound_flavonoid",
+      "relation": "CONTAINS_COMPOUND",
+      "doc_source": "ca_gai_leo.txt"
+    },
+    {
+      "source": "herb_ca_gai_leo",
+      "target": "compound_saponin_steroid",
+      "relation": "CONTAINS_COMPOUND",
+      "doc_source": "ca_gai_leo.txt"
+    },
+    {
+      "source": "herb_ca_gai_leo",
+      "target": "compound_acid_amin",
+      "relation": "CONTAINS_COMPOUND",
+      "doc_source": "ca_gai_leo.txt"
+    },
+    {
+      "source": "herb_ca_gai_leo",
+      "target": "disease_giai_doc_gan",
+      "relation": "TREATS_DISEASE",
+      "doc_source": "ca_gai_leo.txt"
+    },
+    {
+      "source": "herb_ca_gai_leo",
+      "target": "disease_ha_men_gan",
+      "relation": "TREATS_DISEASE",
+      "doc_source": "ca_gai_leo.txt"
+    },
+    {
+      "source": "herb_ca_gai_leo",
+      "target": "disease_xo_gan",
+      "relation": "TREATS_DISEASE",
+      "doc_source": "ca_gai_leo.txt"
+    },
+    {
+      "source": "herb_ca_gai_leo",
+      "target": "disease_viem_gan_b_man_tinh",
+      "relation": "TREATS_DISEASE",
+      "doc_source": "ca_gai_leo.txt"
+    },
+    {
+      "source": "herb_ca_gai_leo",
+      "target": "disease_giai_ruou",
+      "relation": "TREATS_DISEASE",
+      "doc_source": "ca_gai_leo.txt"
+    },
+    {
+      "source": "herb_ca_gai_leo",
+      "target": "disease_chong_say",
+      "relation": "TREATS_DISEASE",
+      "doc_source": "ca_gai_leo.txt"
+    },
+    {
+      "source": "herb_ca_gai_leo",
+      "target": "disease_tieu_viem",
+      "relation": "TREATS_DISEASE",
+      "doc_source": "ca_gai_leo.txt"
+    },
+    {
+      "source": "herb_ca_gai_leo",
+      "target": "disease_phong_thap",
+      "relation": "TREATS_DISEASE",
+      "doc_source": "ca_gai_leo.txt"
+    },
+    {
+      "source": "herb_ca_gai_leo",
+      "target": "disease_dau_nhuc_xuong_khop",
+      "relation": "TREATS_DISEASE",
+      "doc_source": "ca_gai_leo.txt"
+    },
+    {
+      "source": "herb_ca_gai_leo",
+      "target": "plantpart_than_la",
+      "relation": "USES_PART",
+      "doc_source": "ca_gai_leo.txt"
+    },
+    {
+      "source": "herb_kim_ngan_hoa",
+      "target": "plantpart_nu_hoa",
+      "relation": "USES_PART",
+      "doc_source": "kim_ngan_hoa.txt"
+    },
+    {
+      "source": "herb_kim_ngan_hoa",
+      "target": "disease_thanh_nhiet_giai_doc",
+      "relation": "TREATS_DISEASE",
+      "doc_source": "kim_ngan_hoa.txt"
+    },
+    {
+      "source": "herb_kim_ngan_hoa",
+      "target": "disease_tan_phong_nhiet",
+      "relation": "TREATS_DISEASE",
+      "doc_source": "kim_ngan_hoa.txt"
+    },
+    {
+      "source": "herb_kim_ngan_hoa",
+      "target": "disease_mun_nhot",
+      "relation": "TREATS_DISEASE",
+      "doc_source": "kim_ngan_hoa.txt"
+    },
+    {
+      "source": "herb_kim_ngan_hoa",
+      "target": "disease_viem_hong",
+      "relation": "TREATS_DISEASE",
+      "doc_source": "kim_ngan_hoa.txt"
+    },
+    {
+      "source": "herb_kim_ngan_hoa",
+      "target": "disease_cam_sot",
+      "relation": "TREATS_DISEASE",
+      "doc_source": "kim_ngan_hoa.txt"
+    },
+    {
+      "source": "herb_sam_ngoc_linh",
+      "target": "plantpart_than_re",
+      "relation": "USES_PART",
+      "doc_source": "sam_ngoc_linh.txt"
+    },
+    {
+      "source": "herb_sam_ngoc_linh",
+      "target": "plantpart_re_cu",
+      "relation": "USES_PART",
+      "doc_source": "sam_ngoc_linh.txt"
+    },
+    {
+      "source": "herb_sam_ngoc_linh",
+      "target": "compound_saponin",
+      "relation": "CONTAINS_COMPOUND",
+      "doc_source": "sam_ngoc_linh.txt"
+    },
+    {
+      "source": "herb_sam_ngoc_linh",
+      "target": "disease_stress",
+      "relation": "TREATS_DISEASE",
+      "doc_source": "sam_ngoc_linh.txt"
+    },
+    {
+      "source": "herb_sam_ngoc_linh",
+      "target": "disease_huyet_ap_khong_on_dinh",
+      "relation": "TREATS_DISEASE",
+      "doc_source": "sam_ngoc_linh.txt"
+    }
+  ]
+}

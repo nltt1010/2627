@@ -1,5 +1,6 @@
 import logging
-from typing import List, Dict, Any, Optional
+import re
+from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -21,30 +22,36 @@ SYSTEM_PROMPT = """Bạn là trợ lý AI chuyên gia về dược liệu và n�
 - Danh sách cụ thể các loài có trong hệ thống: {herb_list}.
 * QUY TẮC BẮT BUỘC: Nếu người dùng hỏi về số lượng ("có bao nhiêu loài", "có mấy cây", "liệt kê danh sách các cây"), bạn PHẢI dựa trực tiếp vào mục thống kê trên để trả lời chính xác con số {total_count} và kể tên các loài cây tương ứng.
 
---- QUY TẮC PHẢN HỒI Y KHOA / DƯỢC TÍNH ---
-1. Chỉ sử dụng thông tin có trong phần 'NGỮ CẢNH TÀI LIỆU'. Tuyệt đối không tự bịa đặt hoặc suy diễn các công dụng y học/liều lượng không có trong tài liệu.
-2. Nếu ngữ cảnh không đủ thông tin để trả lời câu hỏi, hãy thẳng thắn thông báo: "Tài liệu hiện tại chưa có thông tin về vấn đề này."
-3. Cuối câu trả lời, luôn liệt kê rõ ràng các nguồn tài liệu đã tham khảo (Metadata: source).
-4. Giữ giọng văn khách quan, khoa học và súc tích. Định dạng rõ ràng bằng Markdown.
+--- QUY TẮC PHẢN HỒI Y KHOA / DƯỢC TÍNH (GRAPHRAG) ---
+1. Kết hợp thông tin từ 'MẠNG LƯỚI QUAN HỆ ĐỒ THỊ TRI THỨC (GRAPH CONTEXT)' và 'NGỮ CẢNH TÀI LIỆU TRÍCH XUẤT (TEXT CHUNKS)'. Tuyệt đối không tự bịa đặt hoặc suy diễn các công dụng y học/liều lượng không có trong cơ sở dữ liệu.
+2. Nếu câu hỏi yêu cầu so sánh, tìm cây cùng chữa bệnh, tìm hoạt chất hoặc tìm mối quan hệ liên kết bắc cầu giữa các loài cây, hãy tận dụng triệt để các quan hệ đã được kiểm chứng trong Đồ thị tri thức.
+3. Nếu cả ngữ cảnh tài liệu và đồ thị đều không đủ thông tin, hãy thẳng thắn thông báo: "Tài liệu hiện tại chưa có thông tin về vấn đề này."
+4. Cuối câu trả lời, luôn liệt kê rõ ràng các nguồn tài liệu đã tham khảo (Metadata: source).
+5. Giữ giọng văn khách quan, khoa học và súc tích. Định dạng rõ ràng bằng Markdown.
 
---- NGỮ CẢNH TÀI LIỆU ---
+--- MẠNG LƯỚI QUAN HỆ ĐỒ THỊ TRI THỨC (GRAPH CONTEXT) ---
+{graph_context}
+
+--- NGỮ CẢNH TÀI LIỆU TRÍCH XUẤT (TEXT CHUNKS) ---
 {context}
 """
 
 
 class RAGGenerator:
-    """Xử lý kết hợp ngữ cảnh từ Advanced Hybrid Retriever và sinh câu trả lời bằng Gemini LLM kèm RAG Triad Evaluator."""
+    """Xử lý kết hợp ngữ cảnh từ Advanced Hybrid Retriever + Knowledge Graph (GraphRAG) và sinh câu trả lời bằng Gemini LLM."""
 
     def __init__(
         self,
         hybrid_retriever: HybridRetrieverManager,
         image_store: Optional[Any] = None,
         evaluator: Optional[RAGTriadEvaluator] = None,
+        graph_manager: Optional[Any] = None,
     ):
         self.settings = get_settings()
         self.retriever = hybrid_retriever
         self.image_store = image_store
         self.evaluator = evaluator or RAGTriadEvaluator()
+        self.graph_manager = graph_manager
 
         model_name = getattr(self.settings, "DEFAULT_LLM_MODEL", "gemini-2.5-flash")
         selected_key = key_manager.get_key_for_chat(model_name)
@@ -91,17 +98,108 @@ class RAGGenerator:
             formatted_chunks.append(f"[Đoạn {idx} - Nguồn: {source}{score_info}]\n{doc.page_content.strip()}")
         return "\n\n".join(formatted_chunks)
 
+    def _get_graph_context(self, question: str) -> Tuple[str, List[Dict[str, Any]]]:
+        """Trích xuất tri thức đồ thị có cấu trúc (Graph Context) tương ứng với câu hỏi."""
+        if not self.graph_manager or not hasattr(self.graph_manager, "graph"):
+            return "Không có module đồ thị tri thức kết nối.", []
+
+        q_lower = question.lower()
+        graph = self.graph_manager.graph
+        facts = []
+        structured_items = []
+
+        # 1. Phát hiện các cây có trong đồ thị xuất hiện trong câu hỏi
+        matched_herbs = []
+        for n, data in graph.nodes(data=True):
+            if data.get("type") == "Herb":
+                label = data.get("label", "")
+                if label.lower() in q_lower or re.search(r'\b' + re.escape(label.lower()) + r'\b', q_lower):
+                    matched_herbs.append((n, label))
+
+        # Kiểm tra câu hỏi có ý định tìm cây cùng chữa bệnh hay không
+        is_sharing_query = any(k in q_lower for k in ["cùng", "giống", "thay thế", "khác", "nhóm"])
+
+        # 2. Xử lý câu hỏi tìm cây có chung công dụng
+        if is_sharing_query and matched_herbs:
+            for n_id, h_label in matched_herbs:
+                sharing = self.graph_manager.find_herbs_sharing_disease(h_label)
+                if sharing:
+                    for item in sharing:
+                        facts.append(
+                            f"- Cây '{item['herb_name']}' CÓ CHUNG CÔNG DỤNG với '{h_label}' trong việc điều trị: {', '.join(item['shared_diseases'])}."
+                        )
+                        structured_items.append({
+                            "type": "shared_disease",
+                            "herb_a": h_label,
+                            "herb_b": item["herb_name"],
+                            "diseases": item["shared_diseases"],
+                        })
+
+        # 3. Xử lý đường đi liên kết giữa 2 cây nếu có 2 cây trở lên
+        if len(matched_herbs) >= 2:
+            paths_res = self.graph_manager.get_paths_between(matched_herbs[0][1], matched_herbs[1][1])
+            if paths_res.get("found"):
+                facts.append(f"- Phát hiện mối liên kết giữa '{matched_herbs[0][1]}' và '{matched_herbs[1][1]}' trong đồ thị qua {len(paths_res['paths'])} đường dẫn.")
+
+        # 4. Trích xuất các quan hệ trực tiếp xung quanh các cây được nhắc đến
+        for n_id, h_label in matched_herbs:
+            ego = self.graph_manager.get_ego_graph(h_label, hops=1)
+            parts = []
+            compounds = []
+            diseases = []
+            contraindications = []
+
+            for edge in ego.get("edges", []):
+                tgt_id = edge["target"]
+                rel = edge["relation"]
+                tgt_node = graph.nodes.get(tgt_id, {})
+                tgt_label = tgt_node.get("label", tgt_id)
+
+                if rel == "USES_PART":
+                    parts.append(tgt_label)
+                elif rel == "CONTAINS_COMPOUND":
+                    compounds.append(tgt_label)
+                elif rel == "TREATS_DISEASE":
+                    diseases.append(tgt_label)
+                elif rel == "CONTRAINDICATED_FOR":
+                    contraindications.append(tgt_label)
+
+            if parts:
+                facts.append(f"- Thảo dược '{h_label}' dùng bộ phận: {', '.join(set(parts))}.")
+            if compounds:
+                facts.append(f"- Thảo dược '{h_label}' chứa hoạt chất: {', '.join(set(compounds))}.")
+            if diseases:
+                facts.append(f"- Thảo dược '{h_label}' hỗ trợ điều trị: {', '.join(set(diseases))}.")
+            if contraindications:
+                facts.append(f"- Thảo dược '{h_label}' chống chỉ định/kiêng kỵ cho: {', '.join(set(contraindications))}.")
+
+        # 5. Nếu chưa có cây nào khớp, tìm xem có bệnh nào xuất hiện trong câu hỏi không
+        if not matched_herbs:
+            for n, data in graph.nodes(data=True):
+                if data.get("type") == "Disease":
+                    d_label = data.get("label", "")
+                    if len(d_label) >= 4 and d_label.lower() in q_lower:
+                        herbs_found = self.graph_manager.find_herbs_for_disease(d_label)
+                        if herbs_found:
+                            h_names = [hf["herb_name"] for hf in herbs_found]
+                            facts.append(f"- Theo Đồ thị tri thức, bệnh/triệu chứng '{d_label}' có thể được điều trị bằng các cây: {', '.join(set(h_names))}.")
+
+        if facts:
+            return "\n".join(facts), structured_items
+        return "Không có dữ liệu quan hệ đồ thị tương ứng cho câu hỏi này.", []
+
     def answer_question(
         self,
         question: str,
         top_k: int = 3,
         evaluate_rag: bool = True,
     ) -> Dict[str, Any]:
-        """Quy trình Advanced RAG hoàn chỉnh:
+        """Quy trình GraphRAG hoàn chỉnh:
         1. Lấy thống kê kho
         2. Truy xuất tài liệu bằng Advanced Retriever (HyDE + Multi-Query + CrossEncoder Reranker)
-        3. Định dạng ngữ cảnh & sinh câu trả lời bằng Gemini
-        4. Tự động đánh giá chất lượng bằng RAG Triad Evaluator (Context Relevance, Groundedness, Answer Relevance)
+        3. Truy xuất mạng lưới quan hệ từ Knowledge Graph (Graph Context)
+        4. Định dạng ngữ cảnh kép (Text + Graph) & sinh câu trả lời bằng Gemini
+        5. Tự động đánh giá chất lượng bằng RAG Triad Evaluator (Context Relevance, Groundedness, Answer Relevance)
         """
         # 1. Lấy dữ liệu thống kê trực tiếp từ kho
         db_summary = self._get_live_database_summary()
@@ -110,7 +208,10 @@ class RAGGenerator:
         # 2. Truy xuất tài liệu liên quan bằng Advanced Hybrid Search
         relevant_docs = self.retriever.get_relevant_documents(query=question, top_k=top_k, use_advanced=True)
 
-        # 3. Định dạng ngữ cảnh
+        # 3. Truy xuất đồ thị tri thức (Graph Context)
+        graph_context_str, graph_items = self._get_graph_context(question)
+
+        # 4. Định dạng ngữ cảnh văn bản
         if relevant_docs:
             context_str = self._format_context(relevant_docs)
             sources = list({doc.metadata.get("source", "Không rõ") for doc in relevant_docs})
@@ -118,24 +219,26 @@ class RAGGenerator:
             context_str = "Hiện không tìm thấy đoạn trích dẫn cụ thể nào khớp với từ khóa tìm kiếm."
             sources = []
 
-        # 4. Tạo chuỗi thực thi (LCEL Chain)
+        # 5. Tạo chuỗi thực thi (LCEL Chain)
         chain = self.prompt_template | self.llm | self.output_parser
 
-        # 5. Sinh phản hồi
+        # 6. Sinh phản hồi kết hợp Graph Context + Text Context
+        combined_context_for_eval = f"GRAPH CONTEXT:\n{graph_context_str}\n\nTEXT CHUNKS:\n{context_str}"
         answer = chain.invoke({
             "total_count": db_summary["total_count"],
             "herb_list": herb_list_str,
+            "graph_context": graph_context_str,
             "context": context_str,
             "question": question,
         })
 
-        # 6. Đánh giá chất lượng bằng RAG Triad
+        # 7. Đánh giá chất lượng bằng RAG Triad
         evaluation = None
-        if evaluate_rag and relevant_docs:
+        if evaluate_rag and (relevant_docs or graph_items):
             try:
                 evaluation = self.evaluator.evaluate(
                     question=question,
-                    context=context_str,
+                    context=combined_context_for_eval,
                     answer=answer,
                 )
             except Exception as e:
@@ -156,4 +259,5 @@ class RAGGenerator:
             "db_stats": db_summary,
             "evaluation": evaluation,
             "retrieved_docs": retrieved_details,
+            "graph_context": graph_items,
         }

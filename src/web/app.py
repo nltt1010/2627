@@ -1,6 +1,14 @@
 import sys
 from pathlib import Path
 
+# Đảm bảo UTF-8 encoding trên Windows console để tránh UnicodeEncodeError
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(ROOT_DIR))
 
@@ -14,6 +22,8 @@ from src.modules.rag.vectorstore import VectorStoreManager
 from src.modules.rag.hybrid_retriever import HybridRetrieverManager
 from src.modules.rag.generator import RAGGenerator
 from src.modules.rag.document_formatter import DocumentFormattingAgent
+from src.modules.graph.graph_manager import KnowledgeGraphManager
+from src.modules.graph.graph_extractor import KnowledgeGraphExtractor
 from src.modules.vision.image_store import ImageVectorStore
 from src.modules.vision.visual_rag_pipeline import VisualRAGPipeline
 
@@ -21,7 +31,7 @@ app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # Tối đa 16MB
 
 # --- KHỞI TẠO HỆ THỐNG RAG VÀ VISION DUY NHẤT 1 LẦN ---
-print(">> Đang khởi tạo hệ thống VietHerb-AI (Text RAG + Visual Vector Store)...")
+print(">> Đang khởi tạo hệ thống VietHerb-AI (Text RAG + Visual Vector Store + Knowledge Graph)...")
 ingestion = DocumentIngestion(chunk_size=300, chunk_overlap=30)
 raw_docs = ingestion.load_text_files()
 chunks = ingestion.split_documents(raw_docs)
@@ -34,7 +44,14 @@ hybrid_retriever = HybridRetrieverManager(
     documents=chunks,
 )
 image_store = ImageVectorStore(collection_name="herb_images_collection")
-text_generator = RAGGenerator(hybrid_retriever=hybrid_retriever, image_store=image_store)
+graph_manager = KnowledgeGraphManager()
+graph_extractor = KnowledgeGraphExtractor()
+
+text_generator = RAGGenerator(
+    hybrid_retriever=hybrid_retriever,
+    image_store=image_store,
+    graph_manager=graph_manager,
+)
 formatter_agent = DocumentFormattingAgent()
 visual_rag = VisualRAGPipeline(
     image_store=image_store,
@@ -387,12 +404,21 @@ def upload_text_document():
         total_chunks = 0
         for s_file in saved_files:
             total_chunks = reindex_rag_document(s_file)
+            # Tự động trích xuất quan hệ và cập nhật vào Đồ thị tri thức (Knowledge Graph)
+            try:
+                s_path = raw_dir / s_file
+                with open(s_path, "r", encoding="utf-8") as rf:
+                    f_content = rf.read()
+                triples = graph_extractor.extract_triples(f_content, doc_source=s_file)
+                graph_manager.add_herb_graph(triples, doc_source=s_file)
+            except Exception as ge:
+                print(f"Lưu ý khi cập nhật đồ thị cho {s_file}: {ge}")
     except Exception as e:
         return jsonify({"error": f"Lỗi re-index tài liệu: {str(e)}"}), 500
 
     return jsonify({
         "success": True,
-        "message": f"Đã lưu thành công {len(saved_files)} tệp tài liệu và cập nhật cẩm nang tra cứu ({total_chunks} chunks)!",
+        "message": f"Đã lưu thành công {len(saved_files)} tệp tài liệu và cập nhật cẩm nang tra cứu ({total_chunks} chunks, đồng bộ Đồ thị tri thức)!",
         "saved_count": len(saved_files),
     })
 
@@ -428,12 +454,18 @@ def create_text_document():
 
     try:
         total_chunks = reindex_rag_document(file_name)
+        # Tự động trích xuất triples và cập nhật vào Đồ thị tri thức
+        try:
+            triples = graph_extractor.extract_triples(full_text, doc_source=file_name)
+            graph_manager.add_herb_graph(triples, doc_source=file_name)
+        except Exception as ge:
+            print(f"Lưu ý khi cập nhật đồ thị cho {file_name}: {ge}")
     except Exception as e:
         return jsonify({"error": f"Lỗi re-index tài liệu: {str(e)}"}), 500
 
     return jsonify({
         "success": True,
-        "message": f"Đã lưu thông tin cây và cập nhật cẩm nang tra cứu thành công ({total_chunks} chunks)!",
+        "message": f"Đã lưu thông tin cây và cập nhật cẩm nang tra cứu thành công ({total_chunks} chunks, đồng bộ Đồ thị tri thức)!",
         "file_name": file_name,
     })
 
@@ -514,12 +546,19 @@ def update_text_document():
 
     try:
         total_chunks = reindex_rag_document(safe_name)
+        # Đồng bộ hóa đồ thị tri thức: Xóa quan hệ cũ của file và trích xuất quan hệ mới
+        try:
+            graph_manager.delete_by_source(safe_name)
+            triples = graph_extractor.extract_triples(content, doc_source=safe_name)
+            graph_manager.add_herb_graph(triples, doc_source=safe_name)
+        except Exception as ge:
+            print(f"Lỗi đồng bộ đồ thị cho {safe_name}: {ge}")
     except Exception as e:
         return jsonify({"error": f"Đã lưu file nhưng gặp lỗi khi re-index RAG: {str(e)}"}), 500
 
     return jsonify({
         "success": True,
-        "message": f"Đã lưu '{safe_name}' và cập nhật kho tri thức RAG tức thì ({total_chunks} chunks)!",
+        "message": f"Đã lưu '{safe_name}' và cập nhật kho tri thức RAG tức thì ({total_chunks} chunks, đồng bộ Đồ thị tri thức)!",
         "file_name": safe_name,
         "total_chunks": total_chunks,
     })
@@ -541,6 +580,88 @@ def format_text_document():
         scientific_name=scientific_name,
     )
     return jsonify(result)
+
+
+# =========================================================================
+# API ĐỒ THỊ TRI THỨC (KNOWLEDGE GRAPH)
+# =========================================================================
+@app.route("/api/graph/view", methods=["GET"])
+def get_graph_view():
+    """Lấy dữ liệu hiển thị đồ thị (Toàn bộ hoặc Ego Graph theo loài cây)."""
+    herb_name = request.args.get("herb_name", "").strip()
+    hops = int(request.args.get("hops", 1))
+
+    if herb_name and herb_name.lower() != "all":
+        data = graph_manager.get_ego_graph(herb_name, hops=hops)
+    else:
+        data = graph_manager.get_full_graph()
+    return jsonify(data)
+
+
+@app.route("/api/graph/expand", methods=["GET"])
+def expand_graph_node():
+    """Mở rộng liên kết xung quanh một node cụ thể khi người dùng nhấp đúp."""
+    node_id = request.args.get("node_id", "").strip()
+    if not node_id:
+        return jsonify({"error": "Thiếu node_id"}), 400
+    data = graph_manager.expand_node(node_id)
+    return jsonify(data)
+
+
+@app.route("/api/graph/paths", methods=["GET"])
+def get_graph_paths():
+    """Tìm đường dẫn liên kết giữa hai loài cây."""
+    herb_a = request.args.get("herb_a", "").strip()
+    herb_b = request.args.get("herb_b", "").strip()
+    if not herb_a or not herb_b:
+        return jsonify({"error": "Thiếu tên thảo dược đối chiếu"}), 400
+    data = graph_manager.get_paths_between(herb_a, herb_b)
+    return jsonify(data)
+
+
+@app.route("/api/graph/stats", methods=["GET"])
+def get_graph_stats():
+    """Lấy số liệu thống kê đồ thị và danh sách các thảo dược kèm thống kê liên kết."""
+    full = graph_manager.get_full_graph()
+    
+    # Tính chi tiết số lượng liên kết theo từng thảo dược để hiển thị trên thẻ danh sách
+    herbs_details = []
+    for n in full["nodes"]:
+        if n["type"] == "Herb":
+            herb_id = n["id"]
+            comp_count = 0
+            dis_count = 0
+            part_count = 0
+            contra_count = 0
+            for e in full["edges"]:
+                if e["source"] == herb_id:
+                    rel = e["relation"]
+                    if rel == "CONTAINS_COMPOUND":
+                        comp_count += 1
+                    elif rel == "TREATS_DISEASE":
+                        dis_count += 1
+                    elif rel == "USES_PART":
+                        part_count += 1
+                    elif rel == "CONTRAINDICATED_FOR":
+                        contra_count += 1
+            
+            herbs_details.append({
+                "id": herb_id,
+                "label": n["label"],
+                "compound_count": comp_count,
+                "disease_count": dis_count,
+                "plant_part_count": part_count,
+                "contra_count": contra_count,
+                "total_links": comp_count + dis_count + part_count + contra_count
+            })
+
+    return jsonify({
+        "total_nodes": full["total_nodes"],
+        "total_edges": full["total_edges"],
+        "type_counts": full["type_counts"],
+        "relation_counts": full["relation_counts"],
+        "herbs": herbs_details,
+    })
 
 
 if __name__ == "__main__":

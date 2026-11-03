@@ -20,6 +20,9 @@
     <!-- MARKED & DOMPURIFY FOR SAFE MARKDOWN RENDERING -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+
+    <!-- VIS-NETWORK FOR KNOWLEDGE GRAPH VISUALIZATION -->
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 </head>
 <body>
 
@@ -98,6 +101,12 @@
                         </a>
                     </li>
                     <li class="sidebar-nav-item">
+                        <a class="sidebar-nav-link" id="nav-link-graph" onclick="switchNavTab('graph')">
+                            <i class="bi bi-diagram-3-fill"></i>
+                            <span>Mạng lưới tri thức</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-nav-item">
                         <a class="sidebar-nav-link" id="nav-link-missing" onclick="scrollToMissingHerbs()">
                             <i class="bi bi-hourglass-split"></i>
                             <span>Cây đợi bổ sung ảnh</span>
@@ -150,6 +159,9 @@
                 </li>
                 <li class="nav-item">
                     <button class="nav-link" id="tab-text-btn" data-bs-toggle="pill" data-bs-target="#tab-text"></button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="tab-graph-btn" data-bs-toggle="pill" data-bs-target="#tab-graph"></button>
                 </li>
             </ul>
 
@@ -382,6 +394,145 @@
                         </div>
 
                     </div>
+                </div>
+
+                <!-- ====================================================== -->
+                <!-- TAB 4: MẠNG LƯỚI TRI THỨC (KNOWLEDGE GRAPH EXPLORER)   -->
+                <!-- ====================================================== -->
+                <div class="tab-pane fade" id="tab-graph">
+                    
+                    <div class="graph-explorer-layout">
+                        <!-- CỘT BÊN TRÁI: DANH SÁCH THẢO DƯỢC -->
+                        <div class="graph-herb-sidebar">
+                            <div class="herb-sidebar-header">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <span class="fw-bold fs-6 text-primary d-flex align-items-center gap-2">
+                                        <i class="bi bi-collection-fill text-herb"></i>
+                                        <span>Danh Sách Cây Thuốc</span>
+                                    </span>
+                                    <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399;" id="graph-herb-total-badge">-- loài</span>
+                                </div>
+                                <div class="position-relative">
+                                    <input type="text" id="graph-herb-search-input" class="form-control form-control-sm ps-4" 
+                                           placeholder="Tìm theo tên cây thuốc..." oninput="handleFilterHerbList(this.value)">
+                                    <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-2 text-muted" style="font-size: 0.75rem;"></i>
+                                </div>
+                            </div>
+
+                            <div class="herb-sidebar-list" id="graph-herb-items-list">
+                                <div class="text-secondary small p-3 text-center">Đang tải danh sách cây thuốc...</div>
+                            </div>
+
+                            <div class="herb-sidebar-footer">
+                                <button class="btn btn-dark-subtle btn-sm w-100" id="btn-show-all-graph" onclick="selectGraphHerb('ALL')" title="Xem toàn bộ đồ thị tri thức tổng hợp">
+                                    <i class="bi bi-diagram-3 me-1 text-herb"></i> Xem toàn bộ mạng lưới
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- CỘT BÊN PHẢI: KHUNG ĐỒ THỊ CÂY PHÂN CẤP TỪ TRÊN XUỐNG -->
+                        <div class="graph-main-content">
+                            <!-- THANH ĐIỀU KHIỂN & TIÊU ĐỀ -->
+                            <div class="graph-controls-bar">
+                                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                    <!-- Tiêu đề cây đang chọn -->
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="active-herb-icon" id="current-herb-icon">🌿</span>
+                                        <div>
+                                            <div class="fw-bold fs-6 text-primary" id="current-herb-title">Đang chọn: Cà Gai Leo</div>
+                                            <div class="text-secondary small" id="current-herb-subtitle">Sơ đồ phân nhánh từ trên xuống (Cây thuốc ➔ Hoạt chất / Bệnh lý / Bộ phận)</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Bộ nút chuyển layout, bước nhảy, căn giữa -->
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button type="button" class="btn btn-dark-subtle btn-sm active" id="btn-layout-tree" onclick="setGraphLayoutMode('tree')" title="Bố trí đồ thị cây phân cấp từ trên xuống">
+                                                <i class="bi bi-diagram-2 me-1 text-herb"></i>Dạng Cây
+                                            </button>
+                                            <button type="button" class="btn btn-dark-subtle btn-sm" id="btn-layout-physics" onclick="setGraphLayoutMode('physics')" title="Bố trí mạng lưới đa chiều">
+                                                <i class="bi bi-share me-1"></i>Mạng Lưới
+                                            </button>
+                                        </div>
+
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button type="button" class="btn btn-dark-subtle btn-sm active" id="btn-hop-1" onclick="setGraphHops(1)">1 Bước</button>
+                                            <button type="button" class="btn btn-dark-subtle btn-sm" id="btn-hop-2" onclick="setGraphHops(2)">2 Bước</button>
+                                        </div>
+
+                                        <button class="btn btn-dark-subtle btn-sm" onclick="openPathFinderModal()" title="Tìm quan hệ bắc cầu giữa 2 thảo dược">
+                                            <i class="bi bi-signpost-split text-herb"></i>
+                                            <span class="d-none d-xl-inline">Quan hệ bắc cầu</span>
+                                        </button>
+                                        <button class="btn btn-dark-subtle btn-sm" onclick="fitKnowledgeGraph()" title="Căn chỉnh vừa khung nhìn">
+                                            <i class="bi bi-arrows-fullscreen"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- FILTER PILLS -->
+                                <div class="d-flex align-items-center gap-2 mt-2 pt-2 border-top border-secondary border-opacity-25 flex-wrap">
+                                    <span class="text-secondary small me-1" style="font-size: 0.76rem;"><i class="bi bi-funnel me-1"></i>Lọc nhánh:</span>
+                                    <button class="graph-filter-pill pill-all active" id="filter-all" onclick="toggleAllGraphFilters()">
+                                        <span class="pill-dot" style="background: #ffffff;"></span> Tất cả (<span id="count-all">0</span>)
+                                    </button>
+                                    <button class="graph-filter-pill pill-herb active" id="filter-Herb" onclick="toggleGraphTypeFilter('Herb')">
+                                        <span class="pill-dot" style="background: #10b981;"></span> Loài cây (<span id="count-herb">0</span>)
+                                    </button>
+                                    <button class="graph-filter-pill pill-compound active" id="filter-Compound" onclick="toggleGraphTypeFilter('Compound')">
+                                        <span class="pill-dot" style="background: #a855f7;"></span> Hoạt chất (<span id="count-compound">0</span>)
+                                    </button>
+                                    <button class="graph-filter-pill pill-disease active" id="filter-Disease" onclick="toggleGraphTypeFilter('Disease')">
+                                        <span class="pill-dot" style="background: #f97316;"></span> Bệnh lý (<span id="count-disease">0</span>)
+                                    </button>
+                                    <button class="graph-filter-pill pill-plantpart active" id="filter-PlantPart" onclick="toggleGraphTypeFilter('PlantPart')">
+                                        <span class="pill-dot" style="background: #84cc16;"></span> Bộ phận (<span id="count-plantpart">0</span>)
+                                    </button>
+                                    <button class="graph-filter-pill pill-contra active" id="filter-Contraindication" onclick="toggleGraphTypeFilter('Contraindication')">
+                                        <span class="pill-dot" style="background: #64748b;"></span> Kiêng cữ (<span id="count-contra">0</span>)
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- KHUNG VẼ ĐỒ THỊ -->
+                            <div class="graph-container-wrapper position-relative">
+                                <!-- THE VIS.JS CANVAS -->
+                                <div id="knowledge-graph-container" class="knowledge-graph-container"></div>
+                                
+                                <!-- LOADING OVERLAY -->
+                                <div id="graph-loading-overlay" class="graph-loading-overlay d-none">
+                                    <div class="spinner-border text-herb mb-2" role="status"></div>
+                                    <div class="text-secondary small" id="graph-loading-text">Đang vẽ sơ đồ phân cấp từ trên xuống...</div>
+                                </div>
+
+                                <!-- FLOATING INSPECTOR PANEL -->
+                                <div id="graph-inspector-panel" class="graph-inspector-panel d-none">
+                                    <div class="inspector-header">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="inspector-badge" id="inspector-type-badge">Loài cây</span>
+                                            <h6 class="mb-0 fw-bold text-truncate" id="inspector-node-label" style="max-width: 190px;">Tên thực thể</h6>
+                                        </div>
+                                        <button type="button" class="btn-close btn-close-dark btn-sm" onclick="closeInspectorPanel()"></button>
+                                    </div>
+                                    <div class="inspector-body" id="inspector-body">
+                                        <!-- Populated dynamically -->
+                                    </div>
+                                    <div class="inspector-footer">
+                                        <button class="btn btn-herb-outline btn-sm w-100" id="inspector-expand-btn" onclick="expandCurrentInspectorNode()">
+                                            <i class="bi bi-diagram-2 me-1"></i> Mở rộng các mối liên kết
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- HINT TOOLTIP -->
+                                <div class="graph-canvas-hint">
+                                    <i class="bi bi-diagram-2 text-herb me-1"></i>
+                                    <span>Sơ đồ cây phân nhánh từ trên xuống: <strong>Cây thuốc</strong> ➔ <strong>Bộ phận / Hoạt chất / Bệnh lý</strong> | Nhấp chuột để xem chi tiết | Cuộn chuột để phóng to/thu nhỏ</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
 
             </div>
@@ -633,6 +784,48 @@
         </div>
     </div>
 
+    <!-- ============================================================== -->
+    <!-- MODAL TÌM ĐƯỜNG LIÊN KẾT BẮC CẦU (PATH FINDER)                 -->
+    <!-- ============================================================== -->
+    <div class="modal fade" id="pathFinderModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title d-flex align-items-center gap-2">
+                        <i class="bi bi-signpost-split text-herb"></i>
+                        <span>Tìm Quan Hệ Bắc Cầu Giữa 2 Loài Cây</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-dark" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-secondary small mb-3">
+                        Khám phá mối liên hệ bắc cầu (ví dụ: cùng chữa chung bệnh lý hoặc cùng chứa hoạt chất) giữa 2 loài thảo dược trong cẩm nang tri thức.
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Thảo dược thứ nhất (A):</label>
+                        <select class="form-select form-select-sm" id="path-herb-a"></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Thảo dược thứ hai (B):</label>
+                        <select class="form-select form-select-sm" id="path-herb-b"></select>
+                    </div>
+                    <button class="btn btn-herb w-100" id="btn-find-paths" onclick="executeFindPaths()">
+                        <i class="bi bi-search me-1"></i> Tìm quan hệ bắc cầu
+                    </button>
+                    <div id="path-results-box" class="mt-3 d-none">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <h6 class="small fw-bold text-herb mb-0">Kết quả phân tích đường đi:</h6>
+                            <button class="btn btn-link btn-sm text-secondary p-0" style="font-size: 0.76rem;" onclick="highlightPathOnGraph()">
+                                <i class="bi bi-eye me-1"></i>Xem trên đồ thị
+                            </button>
+                        </div>
+                        <div id="path-results-content" class="small p-2 rounded" style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-subtle); max-height: 240px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- BOOTSTRAP 5 JS BUNDLE -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -642,6 +835,7 @@
         let lightboxModalInstance = new bootstrap.Modal(document.getElementById('lightboxModal'));
         let textDocModalInstance = new bootstrap.Modal(document.getElementById('textDocModal'));
         let editDocModalInstance = new bootstrap.Modal(document.getElementById('editDocModal'));
+        let pathFinderModalInstance = new bootstrap.Modal(document.getElementById('pathFinderModal'));
 
         let currentSelectedHerb = "";
         let rawAvailableHerbs = [];
@@ -672,6 +866,14 @@
                 const btn = document.getElementById('tab-text-btn');
                 bootstrap.Tab.getOrCreateInstance(btn).show();
                 setTimeout(() => document.getElementById('chat-input')?.focus(), 200);
+            } else if (tabName === 'graph') {
+                const btn = document.getElementById('tab-graph-btn');
+                bootstrap.Tab.getOrCreateInstance(btn).show();
+                if (!knowledgeGraphInitialized) {
+                    initKnowledgeGraph();
+                } else if (knowledgeGraphNetwork) {
+                    setTimeout(() => knowledgeGraphNetwork.fit(), 200);
+                }
             }
 
             // Đóng sidebar trên thiết bị di động sau khi chọn
@@ -1699,6 +1901,921 @@
                     </div>
                 </div>
             `;
+        }
+
+        /* ==========================================================================
+           STAGE 4: KNOWLEDGE GRAPH (VIS.JS) CLIENT CONTROLLER - HIERARCHICAL TREE
+           ========================================================================== */
+        
+        let knowledgeGraphInitialized = false;
+        let knowledgeGraphNetwork = null;
+        let graphNodesDataSet = null;
+        let graphEdgesDataSet = null;
+        let rawGraphNodes = [];
+        let rawGraphEdges = [];
+        let availableHerbsList = [];
+        let activeTypeFilters = new Set(['Herb', 'PlantPart', 'Compound', 'Disease', 'Contraindication']);
+        let currentGraphHops = 1;
+        let currentGraphSelectedHerb = "";
+        let currentGraphLayoutMode = 'tree'; // Mặc định là Tree (Phân cấp từ trên xuống)
+        let currentInspectorNodeId = null;
+        let lastFoundPathData = null;
+
+        const GRAPH_ENTITY_CONFIG = {
+            'Herb': { color: '#10b981', border: '#34d399', bgBox: '#064e3b', size: 26, labelVn: 'Loài cây', icon: '🌿' },
+            'PlantPart': { color: '#84cc16', border: '#a3e635', bgBox: '#1c331c', size: 16, labelVn: 'Bộ phận dùng', icon: '🌱' },
+            'Compound': { color: '#a855f7', border: '#c084fc', bgBox: '#2d1847', size: 18, labelVn: 'Hoạt chất', icon: '🧪' },
+            'Disease': { color: '#f97316', border: '#fb923c', bgBox: '#3b1c0b', size: 18, labelVn: 'Bệnh lý / Triệu chứng', icon: '🩺' },
+            'Contraindication': { color: '#64748b', border: '#94a3b8', bgBox: '#1e293b', size: 16, labelVn: 'Kiêng cữ', icon: '⚠️' }
+        };
+
+        const GRAPH_RELATION_LABELS = {
+            'USES_PART': 'dùng bộ phận',
+            'CONTAINS_COMPOUND': 'chứa hoạt chất',
+            'TREATS_DISEASE': 'hỗ trợ điều trị',
+            'CONTRAINDICATED_FOR': 'kiêng cữ cho'
+        };
+
+        // Tạo cấu hình options cho Vis.Network theo chế độ (Tree hoặc Physics)
+        function getNetworkOptions(mode = currentGraphLayoutMode) {
+            if (mode === 'tree') {
+                return {
+                    layout: {
+                        hierarchical: {
+                            enabled: true,
+                            direction: 'UD', // Bố trí nhánh từ trên xuống dưới
+                            sortMethod: 'directed',
+                            levelSeparation: 130,
+                            nodeSpacing: 180,
+                            treeSpacing: 220,
+                            blockShifting: true,
+                            edgeMinimization: true,
+                            parentCentralization: true
+                        }
+                    },
+                    physics: {
+                        enabled: false // Tắt hoàn toàn physics khi ở dạng cây để đồ thị đứng yên, gọn gàng, không bị trôi
+                    },
+                    edges: {
+                        arrows: {
+                            to: { enabled: true, scaleFactor: 0.65 }
+                        },
+                        smooth: {
+                            type: 'cubicBezier',
+                            forceDirection: 'vertical',
+                            roundness: 0.4
+                        },
+                        color: {
+                            color: 'rgba(148, 163, 184, 0.45)',
+                            highlight: '#10b981',
+                            hover: '#38bdf8'
+                        },
+                        font: {
+                            color: '#94a3b8',
+                            size: 10,
+                            align: 'middle',
+                            face: 'Plus Jakarta Sans, sans-serif',
+                            strokeWidth: 2,
+                            strokeColor: '#080d12'
+                        }
+                    },
+                    interaction: {
+                        hover: true,
+                        tooltipDelay: 150,
+                        hideEdgesOnDrag: false,
+                        navigationButtons: false,
+                        dragNodes: true,
+                        dragView: true,
+                        zoomView: true
+                    }
+                };
+            } else {
+                return {
+                    layout: {
+                        hierarchical: {
+                            enabled: false
+                        }
+                    },
+                    physics: {
+                        enabled: true,
+                        solver: 'forceAtlas2Based',
+                        forceAtlas2Based: {
+                            gravitationalConstant: -45,
+                            centralGravity: 0.008,
+                            springLength: 110,
+                            springConstant: 0.05,
+                            damping: 0.8
+                        },
+                        stabilization: {
+                            enabled: true,
+                            iterations: 120,
+                            updateInterval: 25
+                        }
+                    },
+                    edges: {
+                        arrows: {
+                            to: { enabled: true, scaleFactor: 0.65 }
+                        },
+                        smooth: {
+                            type: 'continuous',
+                            roundness: 0.35
+                        },
+                        color: {
+                            color: 'rgba(148, 163, 184, 0.4)',
+                            highlight: '#10b981',
+                            hover: '#38bdf8'
+                        },
+                        font: {
+                            color: '#94a3b8',
+                            size: 10,
+                            align: 'middle',
+                            face: 'Plus Jakarta Sans, sans-serif',
+                            strokeWidth: 2,
+                            strokeColor: '#080d12'
+                        }
+                    },
+                    interaction: {
+                        hover: true,
+                        tooltipDelay: 150,
+                        hideEdgesOnDrag: false,
+                        navigationButtons: false,
+                        dragNodes: true,
+                        dragView: true,
+                        zoomView: true
+                    }
+                };
+            }
+        }
+
+        // Khởi tạo đồ thị Knowledge Graph với Vis.js
+        function initKnowledgeGraph() {
+            if (typeof vis === 'undefined') {
+                console.error("Thư viện Vis.js chưa được tải!");
+                return;
+            }
+
+            const container = document.getElementById('knowledge-graph-container');
+            if (!container) return;
+
+            graphNodesDataSet = new vis.DataSet([]);
+            graphEdgesDataSet = new vis.DataSet([]);
+
+            const data = {
+                nodes: graphNodesDataSet,
+                edges: graphEdgesDataSet
+            };
+
+            const options = getNetworkOptions(currentGraphLayoutMode);
+            knowledgeGraphNetwork = new vis.Network(container, data, options);
+
+            // Bắt sự kiện nhấp chuột vào node
+            knowledgeGraphNetwork.on("selectNode", function(params) {
+                if (params.nodes && params.nodes.length > 0) {
+                    handleGraphNodeClick(params.nodes[0]);
+                }
+            });
+
+            // Bắt sự kiện bỏ chọn node
+            knowledgeGraphNetwork.on("deselectNode", function() {
+                closeInspectorPanel();
+            });
+
+            // Bắt sự kiện double-click để mở rộng node
+            knowledgeGraphNetwork.on("doubleClick", function(params) {
+                if (params.nodes && params.nodes.length > 0) {
+                    handleGraphNodeDoubleClick(params.nodes[0]);
+                }
+            });
+
+            knowledgeGraphInitialized = true;
+
+            // Nạp danh sách thảo dược và tự động chọn cây đầu tiên
+            loadGraphHerbsList();
+        }
+
+        // Tải danh sách thảo dược để nạp vào sidebar & modal
+        function loadGraphHerbsList() {
+            fetch("/api/graph/stats")
+                .then(res => res.json())
+                .then(stats => {
+                    availableHerbsList = stats.herbs || [];
+
+                    // Cập nhật số lượng trên badge
+                    const totalBadge = document.getElementById("graph-herb-total-badge");
+                    if (totalBadge) totalBadge.innerText = `${availableHerbsList.length} loài`;
+
+                    // Render danh sách thảo dược vào sidebar
+                    renderHerbSidebarList(availableHerbsList);
+
+                    // Cập nhật select cho modal Path Finder
+                    const pathSelectA = document.getElementById("path-herb-a");
+                    const pathSelectB = document.getElementById("path-herb-b");
+                    if (pathSelectA && pathSelectB) {
+                        pathSelectA.innerHTML = "";
+                        pathSelectB.innerHTML = "";
+                        availableHerbsList.forEach((h, idx) => {
+                            const optA = document.createElement("option");
+                            optA.value = h.label;
+                            optA.innerText = `🌿 ${h.label}`;
+                            pathSelectA.appendChild(optA);
+
+                            const optB = document.createElement("option");
+                            optB.value = h.label;
+                            optB.innerText = `🌿 ${h.label}`;
+                            if (idx === 1) optB.selected = true;
+                            pathSelectB.appendChild(optB);
+                        });
+                    }
+
+                    // Mặc định tự động chọn loài cây đầu tiên nếu chưa chọn
+                    if (!currentGraphSelectedHerb && availableHerbsList.length > 0) {
+                        selectGraphHerb(availableHerbsList[0].label);
+                    }
+                })
+                .catch(err => console.warn("Không thể tải danh sách thảo dược cho đồ thị:", err));
+        }
+
+        // Render các thẻ cây thuốc vào sidebar bên trái
+        function renderHerbSidebarList(herbs) {
+            const listContainer = document.getElementById("graph-herb-items-list");
+            if (!listContainer) return;
+
+            if (!herbs || herbs.length === 0) {
+                listContainer.innerHTML = `<div class="text-secondary small p-3 text-center">Không tìm thấy cây thuốc phù hợp.</div>`;
+                return;
+            }
+
+            let html = "";
+            herbs.forEach(h => {
+                const isActive = h.label === currentGraphSelectedHerb;
+                const safeName = (h.label || "").replace(/'/g, "\\'");
+                html += `
+                    <div class="graph-herb-card ${isActive ? 'active' : ''}" onclick="selectGraphHerb('${safeName}')">
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <span class="herb-card-name">🌿 ${h.label}</span>
+                            <i class="bi bi-chevron-right text-muted" style="font-size: 0.72rem;"></i>
+                        </div>
+                        <div class="d-flex align-items-center gap-1 flex-wrap mt-2">
+                            ${h.compound_count ? `<span class="herb-sub-badge badge-compound">🧪 ${h.compound_count} hoạt chất</span>` : ''}
+                            ${h.disease_count ? `<span class="herb-sub-badge badge-disease">🩺 ${h.disease_count} bệnh</span>` : ''}
+                            ${h.plant_part_count ? `<span class="herb-sub-badge badge-part">🌱 ${h.plant_part_count} bộ phận</span>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            listContainer.innerHTML = html;
+        }
+
+        // Lọc danh sách thảo dược theo từ khóa tìm kiếm
+        function handleFilterHerbList(keyword) {
+            const term = (keyword || "").toLowerCase().trim();
+            if (!term) {
+                renderHerbSidebarList(availableHerbsList);
+                return;
+            }
+            const filtered = availableHerbsList.filter(h => (h.label || "").toLowerCase().includes(term));
+            renderHerbSidebarList(filtered);
+        }
+
+        // Chọn một cây thuốc từ danh sách để vẽ sơ đồ cây phân cấp
+        function selectGraphHerb(herbName) {
+            currentGraphSelectedHerb = herbName;
+            closeInspectorPanel();
+
+            // Cập nhật trạng thái active trên sidebar
+            renderHerbSidebarList(availableHerbsList);
+            const allBtn = document.getElementById("btn-show-all-graph");
+            if (allBtn) allBtn.classList.toggle("active", herbName === 'ALL');
+
+            // Cập nhật thanh tiêu đề bên phải
+            const titleEl = document.getElementById("current-herb-title");
+            const subtitleEl = document.getElementById("current-herb-subtitle");
+            const iconEl = document.getElementById("current-herb-icon");
+
+            if (herbName === 'ALL') {
+                if (titleEl) titleEl.innerText = "Toàn bộ mạng lưới tri thức";
+                if (subtitleEl) subtitleEl.innerText = "Đồ thị tổng hợp tất cả các loài thảo dược trong cẩm nang";
+                if (iconEl) iconEl.innerText = "🌐";
+                loadKnowledgeGraphData(null, 1);
+            } else {
+                if (titleEl) titleEl.innerText = `Cây thuốc: ${herbName}`;
+                if (subtitleEl) subtitleEl.innerText = "Sơ đồ phân nhánh từ trên xuống (Cây thuốc ➔ Hoạt chất / Bệnh lý / Bộ phận)";
+                if (iconEl) iconEl.innerText = "🌿";
+                loadKnowledgeGraphData(herbName, currentGraphHops);
+            }
+        }
+
+        // Chuyển đổi giữa chế độ Cây (Tree UD) và Mạng Lưới (Physics)
+        function setGraphLayoutMode(mode) {
+            currentGraphLayoutMode = mode;
+            document.getElementById("btn-layout-tree").classList.toggle("active", mode === 'tree');
+            document.getElementById("btn-layout-physics").classList.toggle("active", mode === 'physics');
+
+            if (knowledgeGraphNetwork) {
+                knowledgeGraphNetwork.setOptions(getNetworkOptions(mode));
+                renderGraphDatasets();
+                setTimeout(() => {
+                    knowledgeGraphNetwork.fit({
+                        animation: { duration: 500, easingFunction: 'easeInOutQuad' }
+                    });
+                }, 150);
+            }
+        }
+
+        // Tải dữ liệu đồ thị từ backend (Toàn bộ hoặc Ego Graph)
+        function loadKnowledgeGraphData(herbName = null, hops = 1) {
+            const overlay = document.getElementById("graph-loading-overlay");
+            if (overlay) overlay.classList.remove("d-none");
+
+            let url = "/api/graph/view";
+            const params = [];
+            if (herbName && herbName.trim() && herbName !== 'ALL') {
+                params.push(`herb_name=${encodeURIComponent(herbName.trim())}`);
+                params.push(`hops=${hops}`);
+            }
+            if (params.length > 0) {
+                url += "?" + params.join("&");
+            }
+
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    rawGraphNodes = data.nodes || [];
+                    rawGraphEdges = data.edges || [];
+
+                    updateGraphStatsPills();
+                    renderGraphDatasets();
+
+                    setTimeout(() => {
+                        if (overlay) overlay.classList.add("d-none");
+                        if (knowledgeGraphNetwork) {
+                            knowledgeGraphNetwork.fit({
+                                animation: { duration: 500, easingFunction: 'easeInOutQuad' }
+                            });
+                        }
+                    }, 350);
+                })
+                .catch(err => {
+                    console.error("Lỗi khi tải đồ thị tri thức:", err);
+                    if (overlay) overlay.classList.add("d-none");
+                });
+        }
+
+        // Định dạng node cho Vis.js (Hỗ trợ Tree layout từ trên xuống)
+        function formatVisNode(node) {
+            const cfg = GRAPH_ENTITY_CONFIG[node.type] || {
+                color: '#64748b',
+                border: '#94a3b8',
+                bgBox: '#1e293b',
+                size: 16,
+                labelVn: node.type,
+                icon: '📌'
+            };
+
+            const isHidden = !activeTypeFilters.has(node.type);
+            const isTreeMode = currentGraphLayoutMode === 'tree';
+
+            // Xác định tầng bậc (level) cho sơ đồ cây phân cấp từ trên xuống
+            let level = 1;
+            const isRootHerb = (node.type === 'Herb' && (node.label === currentGraphSelectedHerb || currentGraphSelectedHerb === 'ALL'));
+            if (isRootHerb) {
+                level = 0; // Gốc ở đỉnh cao nhất
+            } else if (node.type === 'Herb') {
+                level = 2; // Các cây thảo dược bắc cầu ở tầng dưới
+            } else {
+                level = 1; // Nhánh con (hoạt chất, bệnh lý, bộ phận) ở tầng 1
+            }
+
+            if (isTreeMode) {
+                // CHẾ ĐỘ CÂY PHÂN CẤP (HIERARCHICAL TREE)
+                if (node.type === 'Herb') {
+                    return {
+                        id: node.id,
+                        label: `🌿 ${node.label}`,
+                        title: `🌿 [Thảo dược] ${node.label}`,
+                        type: node.type,
+                        level: level,
+                        shape: 'box',
+                        shapeProperties: { borderRadius: 8 },
+                        margin: { top: 10, bottom: 10, left: 16, right: 16 },
+                        borderWidth: 2.5,
+                        hidden: isHidden,
+                        font: {
+                            color: '#ffffff',
+                            size: 14,
+                            bold: true,
+                            face: 'Plus Jakarta Sans, sans-serif'
+                        },
+                        color: {
+                            background: '#064e3b',
+                            border: '#10b981',
+                            highlight: { background: '#059669', border: '#34d399' },
+                            hover: { background: '#065f46', border: '#34d399' }
+                        },
+                        shadow: { enabled: true, color: 'rgba(0, 0, 0, 0.6)', size: 8, x: 2, y: 3 }
+                    };
+                } else {
+                    return {
+                        id: node.id,
+                        label: `${cfg.icon} ${node.label}`,
+                        title: `${cfg.icon} [${cfg.labelVn}] ${node.label}`,
+                        type: node.type,
+                        level: level,
+                        shape: 'box',
+                        shapeProperties: { borderRadius: 6 },
+                        margin: { top: 6, bottom: 6, left: 12, right: 12 },
+                        borderWidth: 1.5,
+                        hidden: isHidden,
+                        font: {
+                            color: '#f1f5f9',
+                            size: 11.5,
+                            face: 'Plus Jakarta Sans, sans-serif'
+                        },
+                        color: {
+                            background: cfg.bgBox,
+                            border: cfg.border,
+                            highlight: { background: cfg.bgBox, border: '#ffffff' },
+                            hover: { background: cfg.bgBox, border: '#ffffff' }
+                        },
+                        shadow: { enabled: true, color: 'rgba(0, 0, 0, 0.4)', size: 5, x: 1, y: 2 }
+                    };
+                }
+            } else {
+                // CHẾ ĐỘ MẠNG LƯỚI TỰ DO (PHYSICS NETWORK)
+                return {
+                    id: node.id,
+                    label: node.label,
+                    title: `${cfg.icon} [${cfg.labelVn}] ${node.label}`,
+                    type: node.type,
+                    shape: 'dot',
+                    size: cfg.size,
+                    hidden: isHidden,
+                    borderWidth: 2,
+                    font: {
+                        color: '#f1f5f9',
+                        size: 12,
+                        face: 'Plus Jakarta Sans, sans-serif',
+                        strokeWidth: 3,
+                        strokeColor: '#080d12'
+                    },
+                    color: {
+                        background: cfg.color,
+                        border: cfg.border,
+                        highlight: { background: cfg.color, border: '#ffffff' },
+                        hover: { background: cfg.border, border: '#ffffff' }
+                    }
+                };
+            }
+        }
+
+        // Định dạng cạnh (edge) cho Vis.js
+        function formatVisEdge(edge, edgeId = null) {
+            const id = edgeId || `${edge.source}->${edge.relation}->${edge.target}`;
+            const relVn = GRAPH_RELATION_LABELS[edge.relation] || edge.relation.toLowerCase().replace(/_/g, ' ');
+
+            // Ẩn cạnh nếu 1 trong 2 đầu node bị ẩn bởi bộ lọc
+            const srcNode = rawGraphNodes.find(n => n.id === edge.source);
+            const tgtNode = rawGraphNodes.find(n => n.id === edge.target);
+            const isHidden = (srcNode && !activeTypeFilters.has(srcNode.type)) ||
+                             (tgtNode && !activeTypeFilters.has(tgtNode.type));
+
+            const isTreeMode = currentGraphLayoutMode === 'tree';
+
+            return {
+                id: id,
+                from: edge.source,
+                to: edge.target,
+                label: relVn,
+                title: `Quan hệ: ${relVn}`,
+                relation: edge.relation,
+                doc_source: edge.doc_source || '',
+                hidden: isHidden,
+                smooth: isTreeMode ? { type: 'cubicBezier', forceDirection: 'vertical', roundness: 0.4 } : { type: 'continuous', roundness: 0.35 }
+            };
+        }
+
+        // Đổ toàn bộ nodes & edges vào vis.DataSet
+        function renderGraphDatasets() {
+            if (!graphNodesDataSet || !graphEdgesDataSet) return;
+
+            const visNodes = rawGraphNodes.map(n => formatVisNode(n));
+            const visEdges = rawGraphEdges.map(e => formatVisEdge(e));
+
+            graphNodesDataSet.clear();
+            graphNodesDataSet.add(visNodes);
+
+            graphEdgesDataSet.clear();
+            graphEdgesDataSet.add(visEdges);
+        }
+
+        // Cập nhật số lượng hiển thị trên các Pill bộ lọc
+        function updateGraphStatsPills() {
+            const counts = {
+                'ALL': rawGraphNodes.length,
+                'Herb': 0,
+                'Compound': 0,
+                'Disease': 0,
+                'PlantPart': 0,
+                'Contraindication': 0
+            };
+
+            rawGraphNodes.forEach(n => {
+                if (counts[n.type] !== undefined) {
+                    counts[n.type]++;
+                }
+            });
+
+            document.getElementById("count-all").innerText = counts['ALL'];
+            document.getElementById("count-herb").innerText = counts['Herb'];
+            document.getElementById("count-compound").innerText = counts['Compound'];
+            document.getElementById("count-disease").innerText = counts['Disease'];
+            document.getElementById("count-plantpart").innerText = counts['PlantPart'];
+            document.getElementById("count-contra").innerText = counts['Contraindication'];
+        }
+
+        // Đặt số bước nhảy (1 Hop / 2 Hops)
+        function setGraphHops(hops) {
+            currentGraphHops = hops;
+            document.getElementById("btn-hop-1").classList.toggle("active", hops === 1);
+            document.getElementById("btn-hop-2").classList.toggle("active", hops === 2);
+
+            if (currentGraphSelectedHerb) {
+                loadKnowledgeGraphData(currentGraphSelectedHerb, currentGraphHops);
+            }
+        }
+
+        // Căn chỉnh khung nhìn đồ thị
+        function fitKnowledgeGraph() {
+            if (knowledgeGraphNetwork) {
+                knowledgeGraphNetwork.fit({
+                    animation: {
+                        duration: 600,
+                        easingFunction: 'easeInOutQuad'
+                    }
+                });
+            }
+        }
+
+        // Bật / tắt bộ lọc theo loại thực thể (Entity Type)
+        function toggleGraphTypeFilter(type) {
+            const btn = document.getElementById(`filter-${type}`);
+            if (activeTypeFilters.has(type)) {
+                activeTypeFilters.delete(type);
+                if (btn) btn.classList.remove("active");
+            } else {
+                activeTypeFilters.add(type);
+                if (btn) btn.classList.add("active");
+            }
+
+            const btnAll = document.getElementById("filter-all");
+            const allTypes = ['Herb', 'PlantPart', 'Compound', 'Disease', 'Contraindication'];
+            const allActive = allTypes.every(t => activeTypeFilters.has(t));
+            if (btnAll) btnAll.classList.toggle("active", allActive);
+
+            applyFilterVisibility();
+        }
+
+        // Bật hiển thị tất cả bộ lọc
+        function toggleAllGraphFilters() {
+            const allTypes = ['Herb', 'PlantPart', 'Compound', 'Disease', 'Contraindication'];
+            const allActive = allTypes.every(t => activeTypeFilters.has(t));
+
+            if (allActive) return;
+
+            allTypes.forEach(t => activeTypeFilters.add(t));
+            document.querySelectorAll('.graph-filter-pill').forEach(p => p.classList.add('active'));
+            applyFilterVisibility();
+        }
+
+        // Áp dụng ẩn/hiện node và edge theo bộ lọc đang bật
+        function applyFilterVisibility() {
+            if (!graphNodesDataSet || !graphEdgesDataSet) return;
+
+            const updatedNodes = [];
+            rawGraphNodes.forEach(n => {
+                const isHidden = !activeTypeFilters.has(n.type);
+                updatedNodes.push({ id: n.id, hidden: isHidden });
+            });
+            graphNodesDataSet.update(updatedNodes);
+
+            const updatedEdges = [];
+            rawGraphEdges.forEach(e => {
+                const srcNode = rawGraphNodes.find(n => n.id === e.source);
+                const tgtNode = rawGraphNodes.find(n => n.id === e.target);
+                const isHidden = (srcNode && !activeTypeFilters.has(srcNode.type)) ||
+                                 (tgtNode && !activeTypeFilters.has(tgtNode.type));
+                const edgeId = `${e.source}->${e.relation}->${e.target}`;
+                updatedEdges.push({ id: edgeId, hidden: isHidden });
+            });
+            graphEdgesDataSet.update(updatedEdges);
+        }
+
+        // Xử lý khi nhấp 1 lần vào node -> Mở Inspector Panel
+        function handleGraphNodeClick(nodeId) {
+            currentInspectorNodeId = nodeId;
+            const node = rawGraphNodes.find(n => n.id === nodeId);
+            if (!node) return;
+
+            const panel = document.getElementById("graph-inspector-panel");
+            const badge = document.getElementById("inspector-type-badge");
+            const label = document.getElementById("inspector-node-label");
+            const body = document.getElementById("inspector-body");
+
+            const cfg = GRAPH_ENTITY_CONFIG[node.type] || {
+                color: '#64748b',
+                labelVn: node.type,
+                icon: '📌'
+            };
+
+            badge.innerText = `${cfg.icon} ${cfg.labelVn}`;
+            badge.style.background = cfg.color + '25';
+            badge.style.color = cfg.color;
+            badge.style.border = `1px solid ${cfg.color}60`;
+
+            label.innerText = node.label;
+            label.title = node.label;
+
+            // Tìm các cạnh đi ra (outgoing) và đi vào (incoming)
+            const outgoing = rawGraphEdges.filter(e => e.source === nodeId);
+            const incoming = rawGraphEdges.filter(e => e.target === nodeId);
+
+            let html = "";
+
+            // Chi tiết ID & Nhóm
+            html += `
+                <div class="mb-3 p-2 rounded" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle);">
+                    <div class="text-secondary" style="font-size: 0.72rem;">Mã định danh: <code class="text-herb">${node.id}</code></div>
+                    ${node.type === 'Herb' ? `<div class="text-secondary mt-1" style="font-size: 0.72rem;">Nhóm: <span class="text-primary fw-semibold">Dược liệu cẩm nang</span></div>` : ''}
+                </div>
+            `;
+
+            // Danh sách quan hệ đi ra (Ví dụ: Cà Gai Leo -> Trị Bệnh -> Viêm gan B)
+            if (outgoing.length > 0) {
+                html += `<div class="inspector-rel-group-title"><i class="bi bi-arrow-down-circle text-herb"></i> Nhánh phân cấp (${outgoing.length}):</div>`;
+                outgoing.forEach(e => {
+                    const targetNode = rawGraphNodes.find(n => n.id === e.target);
+                    const targetLabel = targetNode ? targetNode.label : e.target;
+                    const targetType = targetNode ? targetNode.type : 'Thực thể';
+                    const targetCfg = GRAPH_ENTITY_CONFIG[targetType] || { color: '#94a3b8', icon: '•' };
+                    const relVn = GRAPH_RELATION_LABELS[e.relation] || e.relation;
+
+                    html += `
+                        <div class="inspector-rel-item" onclick="focusNodeOnGraph('${e.target}')" title="Nhấp để chuyển tiêu điểm tới ${targetLabel}">
+                            <div class="d-flex align-items-center gap-1 text-truncate" style="max-width: 220px;">
+                                <span style="color: ${targetCfg.color}; font-size: 0.8rem;">${targetCfg.icon}</span>
+                                <span class="text-primary fw-medium text-truncate">${targetLabel}</span>
+                            </div>
+                            <span class="badge" style="background: rgba(255,255,255,0.06); color: var(--text-secondary); font-size: 0.68rem; font-weight: normal;">
+                                ${relVn}
+                            </span>
+                        </div>
+                    `;
+                });
+            }
+
+            // Danh sách quan hệ đi vào (Ví dụ: Viêm gan B <- Trị bởi <- Cà Gai Leo)
+            if (incoming.length > 0) {
+                html += `<div class="inspector-rel-group-title mt-3"><i class="bi bi-arrow-up-circle text-herb"></i> Nguồn liên kết (${incoming.length}):</div>`;
+                incoming.forEach(e => {
+                    const srcNode = rawGraphNodes.find(n => n.id === e.source);
+                    const srcLabel = srcNode ? srcNode.label : e.source;
+                    const srcType = srcNode ? srcNode.type : 'Thực thể';
+                    const srcCfg = GRAPH_ENTITY_CONFIG[srcType] || { color: '#94a3b8', icon: '•' };
+                    const relVn = GRAPH_RELATION_LABELS[e.relation] || e.relation;
+
+                    html += `
+                        <div class="inspector-rel-item" onclick="focusNodeOnGraph('${e.source}')" title="Nhấp để chuyển tiêu điểm tới ${srcLabel}">
+                            <div class="d-flex align-items-center gap-1 text-truncate" style="max-width: 220px;">
+                                <span style="color: ${srcCfg.color}; font-size: 0.8rem;">${srcCfg.icon}</span>
+                                <span class="text-primary fw-medium text-truncate">${srcLabel}</span>
+                            </div>
+                            <span class="badge" style="background: rgba(255,255,255,0.06); color: var(--text-secondary); font-size: 0.68rem; font-weight: normal;">
+                                ${relVn}
+                            </span>
+                        </div>
+                    `;
+                });
+            }
+
+            if (outgoing.length === 0 && incoming.length === 0) {
+                html += `<div class="text-secondary small fst-italic">Điểm này hiện chưa có liên kết trực tiếp trên khung nhìn. Bạn có thể bấm nút mở rộng bên dưới!</div>`;
+            }
+
+            body.innerHTML = html;
+            panel.classList.remove("d-none");
+        }
+
+        // Đóng Inspector Panel
+        function closeInspectorPanel() {
+            const panel = document.getElementById("graph-inspector-panel");
+            if (panel) panel.classList.add("d-none");
+            currentInspectorNodeId = null;
+        }
+
+        // Chuyển góc nhìn đến một node cụ thể khi nhấp trong Inspector Panel
+        function focusNodeOnGraph(nodeId) {
+            if (!knowledgeGraphNetwork) return;
+            knowledgeGraphNetwork.selectNodes([nodeId]);
+            knowledgeGraphNetwork.focus(nodeId, {
+                scale: 1.15,
+                animation: { duration: 500, easingFunction: 'easeInOutQuad' }
+            });
+            handleGraphNodeClick(nodeId);
+        }
+
+        // Xử lý Double Click -> Gọi hàm mở rộng node
+        function handleGraphNodeDoubleClick(nodeId) {
+            expandNodeOnCanvas(nodeId);
+        }
+
+        // Nút mở rộng trong Inspector Panel
+        function expandCurrentInspectorNode() {
+            if (currentInspectorNodeId) {
+                expandNodeOnCanvas(currentInspectorNodeId);
+            }
+        }
+
+        // Mở rộng các liên kết quanh một node (Expand on Click / Double Click)
+        function expandNodeOnCanvas(nodeId) {
+            const expandBtn = document.getElementById("inspector-expand-btn");
+            if (expandBtn) {
+                expandBtn.disabled = true;
+                expandBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Đang mở rộng...`;
+            }
+
+            fetch(`/api/graph/expand?node_id=${encodeURIComponent(nodeId)}`)
+                .then(res => res.json())
+                .then(data => {
+                    const newNodes = data.nodes || [];
+                    const newEdges = data.edges || [];
+
+                    let addedNodesCount = 0;
+                    const nodesToAdd = [];
+                    newNodes.forEach(n => {
+                        if (!rawGraphNodes.some(existing => existing.id === n.id)) {
+                            rawGraphNodes.push(n);
+                            nodesToAdd.push(formatVisNode(n));
+                            addedNodesCount++;
+                        }
+                    });
+
+                    let addedEdgesCount = 0;
+                    const edgesToAdd = [];
+                    newEdges.forEach(e => {
+                        const edgeId = `${e.source}->${e.relation}->${e.target}`;
+                        if (!rawGraphEdges.some(existing => existing.source === e.source && existing.target === e.target && existing.relation === e.relation)) {
+                            rawGraphEdges.push(e);
+                            edgesToAdd.push(formatVisEdge(e, edgeId));
+                            addedEdgesCount++;
+                        }
+                    });
+
+                    if (nodesToAdd.length > 0) {
+                        graphNodesDataSet.add(nodesToAdd);
+                    }
+                    if (edgesToAdd.length > 0) {
+                        graphEdgesDataSet.add(edgesToAdd);
+                    }
+
+                    updateGraphStatsPills();
+
+                    // Cập nhật lại thông tin trong inspector panel nếu đang chọn node này
+                    if (currentInspectorNodeId === nodeId) {
+                        handleGraphNodeClick(nodeId);
+                    }
+
+                    if (expandBtn) {
+                        expandBtn.disabled = false;
+                        expandBtn.innerHTML = `<i class="bi bi-diagram-2 me-1"></i> Mở rộng các mối liên kết`;
+                    }
+                })
+                .catch(err => {
+                    console.error("Lỗi khi mở rộng liên kết node:", err);
+                    if (expandBtn) {
+                        expandBtn.disabled = false;
+                        expandBtn.innerHTML = `<i class="bi bi-diagram-2 me-1"></i> Mở rộng các mối liên kết`;
+                    }
+                });
+        }
+
+        // Mở Modal Tìm Quan Hệ Bắc Cầu Giữa 2 Cây (Path Finder)
+        function openPathFinderModal() {
+            lastFoundPathData = null;
+            const resBox = document.getElementById("path-results-box");
+            if (resBox) resBox.classList.add("d-none");
+            loadGraphHerbsList();
+            pathFinderModalInstance.show();
+        }
+
+        // Thực thi tìm kiếm quan hệ bắc cầu
+        function executeFindPaths() {
+            const selectA = document.getElementById("path-herb-a");
+            const selectB = document.getElementById("path-herb-b");
+            const btn = document.getElementById("btn-find-paths");
+            const resBox = document.getElementById("path-results-box");
+            const resContent = document.getElementById("path-results-content");
+
+            const herbA = selectA.value;
+            const herbB = selectB.value;
+
+            if (!herbA || !herbB) {
+                alert("Vui lòng chọn đủ 2 loài cây để tìm quan hệ bắc cầu!");
+                return;
+            }
+
+            if (herbA === herbB) {
+                alert("Vui lòng chọn 2 loài cây khác nhau để phân tích quan hệ bắc cầu!");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Đang phân tích đồ thị...`;
+
+            fetch(`/api/graph/paths?herb_a=${encodeURIComponent(herbA)}&herb_b=${encodeURIComponent(herbB)}`)
+                .then(res => res.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="bi bi-search me-1"></i> Tìm quan hệ bắc cầu`;
+                    resBox.classList.remove("d-none");
+
+                    if (!data.found || !data.paths || data.paths.length === 0) {
+                        resContent.innerHTML = `
+                            <div class="text-secondary fst-italic p-2 text-center">
+                                <i class="bi bi-info-circle me-1 text-herb"></i> Không tìm thấy mối quan hệ bắc cầu trực tiếp (dưới 3 bước) giữa <strong>${herbA}</strong> và <strong>${herbB}</strong> trong cẩm nang hiện tại.
+                            </div>
+                        `;
+                        lastFoundPathData = null;
+                        return;
+                    }
+
+                    lastFoundPathData = data;
+
+                    let html = `<div class="mb-2 text-secondary" style="font-size: 0.74rem;">Tìm thấy <strong>${data.paths.length}</strong> chuỗi quan hệ bắc cầu:</div>`;
+                    data.paths.forEach((p, idx) => {
+                        const pathNodesStr = p.map(nodeId => {
+                            const nodeObj = (data.nodes || []).find(n => n.id === nodeId) || rawGraphNodes.find(n => n.id === nodeId);
+                            const lbl = nodeObj ? nodeObj.label : nodeId;
+                            const ntype = nodeObj ? nodeObj.type : 'Node';
+                            const cfg = GRAPH_ENTITY_CONFIG[ntype] || { color: '#38bdf8' };
+                            return `<span class="badge" style="background: ${cfg.color}20; color: ${cfg.color}; border: 1px solid ${cfg.color}50;">${lbl}</span>`;
+                        }).join(' <i class="bi bi-arrow-right text-secondary mx-1" style="font-size: 0.7rem;"></i> ');
+
+                        html += `
+                            <div class="p-2 mb-2 rounded" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle);">
+                                <div class="fw-semibold text-primary mb-1" style="font-size: 0.76rem;">Đường nối #${idx + 1} (${p.length - 1} bước):</div>
+                                <div class="d-flex align-items-center flex-wrap gap-1">${pathNodesStr}</div>
+                            </div>
+                        `;
+                    });
+
+                    resContent.innerHTML = html;
+                })
+                .catch(err => {
+                    console.error("Lỗi khi tìm đường đi:", err);
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="bi bi-search me-1"></i> Tìm quan hệ bắc cầu`;
+                    alert("Có lỗi xảy ra khi truy vấn đồ thị: " + err);
+                });
+        }
+
+        // Đánh dấu và phóng to đường đi bắc cầu trên đồ thị chính
+        function highlightPathOnGraph() {
+            if (!lastFoundPathData || !lastFoundPathData.nodes || !knowledgeGraphNetwork) return;
+
+            pathFinderModalInstance.hide();
+
+            // Bổ sung các node và edge của đường đi vào đồ thị nếu chưa có
+            const pathNodeIds = [];
+            lastFoundPathData.nodes.forEach(n => {
+                pathNodeIds.push(n.id);
+                if (!rawGraphNodes.some(existing => existing.id === n.id)) {
+                    rawGraphNodes.push(n);
+                    graphNodesDataSet.add(formatVisNode(n));
+                }
+            });
+
+            if (lastFoundPathData.edges) {
+                lastFoundPathData.edges.forEach(e => {
+                    const edgeId = `${e.source}->${e.relation}->${e.target}`;
+                    if (!rawGraphEdges.some(existing => existing.source === e.source && existing.target === e.target && existing.relation === e.relation)) {
+                        rawGraphEdges.push(e);
+                        graphEdgesDataSet.add(formatVisEdge(e, edgeId));
+                    }
+                });
+            }
+
+            // Chọn các node trên đường đi và fit góc nhìn vào chúng
+            knowledgeGraphNetwork.selectNodes(pathNodeIds);
+            knowledgeGraphNetwork.fit({
+                nodes: pathNodeIds,
+                animation: { duration: 600, easingFunction: 'easeInOutQuad' }
+            });
+
+            // Mở inspector panel cho node đầu tiên
+            if (pathNodeIds.length > 0) {
+                handleGraphNodeClick(pathNodeIds[0]);
+            }
         }
     </script>
 </body>
